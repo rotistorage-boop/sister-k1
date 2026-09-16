@@ -1,6 +1,5 @@
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import dotenv from "dotenv";
 
 const rl = readline.createInterface({ input, output });
 const STUDENT_SERVICE_URL = process.env.STUDENT_SERVICE_URL as string;
