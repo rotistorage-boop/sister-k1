@@ -2,7 +2,7 @@ import { db } from ".";
 import { students } from "./schema";
 
 async function seed() {
-  console.log("seeding....");
+  console.log("Seeding....");
 
   try {
     db.insert(students)
@@ -24,6 +24,7 @@ async function seed() {
         },
       ])
       .run();
+    console.log("Seeding success");
   } catch (err) {
     console.error("Seeding failed");
   }
