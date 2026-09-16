@@ -7,7 +7,20 @@
     "migrate:node2": "cd src/node2-student && npx drizzle-kit push",
     "seed:node2": "cd src/node2-student && tsx src/db/seed.ts",
     "db:setup2": "npm run migrate:node2 && npm run seed:node2",
-    "start:all": "npx concurrently \"npm run node1\" \"npm run node2\""
+    "node3": "cd src/node3-course && tsx src/index.ts",
+    "migrate:node3": "cd src/node3-course && npx drizzle-kit push",
+    "seed:node3": "cd src/node3-course && tsx src/db/seed.ts",
+    "db:setup3": "npm run migrate:node3 && npm run seed:node3",
+    "node4": "cd src/node4-krs && tsx src/index.ts",
+    "migrate:node4": "cd src/node4-krs && npx drizzle-kit push",
+    "seed:node4": "cd src/node4-krs && tsx src/db/seed.ts",
+    "db:setup4": "npm run migrate:node4 && npm run seed:node4",
+    "node5": "cd src/node5-notification && tsx src/index.ts",
+    "migrate:node5": "cd src/node5-notification && npx drizzle-kit push",
+    "seed:node5": "cd src/node5-notification && tsx src/db/seed.ts",
+    "db:setup5": "npm run migrate:node5 && npm run seed:node5",
+    "db:setup:all": "npm run db:setup2 && npm run db:setup3 && npm run db:setup4 && npm run db:setup5",
+    "start:all": "npx concurrently \"npm run node1\" \"npm run node2\" \"npm run node3\" \"npm run node4\" \"npm run node5\""
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
@@ -19,6 +32,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.1",
+    "concurrently": "^9.1.2",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
