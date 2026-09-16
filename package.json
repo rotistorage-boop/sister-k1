@@ -1,0 +1,26 @@
+{
+  "name": "tugasFix",
+  "type": "module",
+  "scripts": {
+    "node1": "tsx src/node1-client/index.ts",
+    "node2": "cd src/node2-student && tsx src/index.ts",
+    "migrate:node2": "cd src/node2-student && npx drizzle-kit push",
+    "seed:node2": "cd src/node2-student && tsx src/db/seed.ts",
+    "db:setup2": "npm run migrate:node2 && npm run seed:node2",
+    "start:all": "npx concurrently \"npm run node1\" \"npm run node2\""
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.1",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
