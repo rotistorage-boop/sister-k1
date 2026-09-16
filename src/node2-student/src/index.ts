@@ -6,10 +6,14 @@ const app = new Hono();
 
 app.route("/", studentRoute);
 
-const port = 3002;
-console.log(`Node 2 (Student Server) is running on port ${port}`);
+const port = Number(process.env.PORT_NODE2);
+const hostname = process.env.HOST;
+
+console.log(`Node 2 (Student Server) is running on http://${hostname}:${port}`);
 
 serve({
   fetch: app.fetch,
   port,
+  hostname,
 });
+
