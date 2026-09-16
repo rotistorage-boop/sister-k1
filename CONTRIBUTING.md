@@ -8,11 +8,11 @@ Panduan ini dibuat untuk mengatur alur pengerjaan dan kolaborasi tim pada proyek
 
 Setiap anggota tim bertanggung jawab atas Node yang telah ditugaskan. Batas pengerjaan (boundary) harus dipatuhi secara ketat:
 
-* Tugas Node 1 (Client CLI): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node1-client/`. Dilarang mengedit file di folder Node 2, Node 3, Node 4, maupun Node 5.
-* Tugas Node 2 (Student Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node2-student/`.
-* Tugas Node 3 (Course Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node3-course/`.
-* Tugas Node 4 (KRS Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node4-krs/`.
-* Tugas Node 5 (Notification Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node5-notification/`.
+- Tugas Node 1 (Client CLI): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node1-client/`. Dilarang mengedit file di folder Node 2, Node 3, Node 4, maupun Node 5.
+- Tugas Node 2 (Student Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node2-student/`.
+- Tugas Node 3 (Course Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node3-course/`.
+- Tugas Node 4 (KRS Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node4-krs/`.
+- Tugas Node 5 (Notification Microservice): Seluruh perubahan HANYA BOLEH dilakukan di dalam folder `src/node5-notification/`.
 
 Catatan: Mengubah kode milik Node lain tanpa konfirmasi tim akan merusak isolasi microservice dan dapat menyebabkan bentrok pada Git.
 
@@ -26,9 +26,9 @@ Catatan: Mengubah kode milik Node lain tanpa konfirmasi tim akan merusak isolasi
 
 ---
 
-## 3. Aturan Workflow Git dan Commit (ruleGit.txt)
+## 3. Aturan Workflow Git dan Commit
 
-Seluruh anggota tim wajib mematuhi aturan Git yang ditetapkan pada D:\promt\ruleGit.txt:
+Seluruh anggota tim wajib mematuhi aturan Git yang ditetapkan:
 
 1. Dilarang menggunakan `git add .` atau `git add -A`.
 2. Stage file secara individual menggunakan exact file path (`git add path/to/file`).
@@ -43,14 +43,14 @@ Seluruh anggota tim wajib mematuhi aturan Git yang ditetapkan pada D:\promt\rule
 
 ## 4. Standardisasi Response API dan Port Mapping
 
-* Port Mapping Default:
-  * Node 1: Client CLI (No HTTP Listener)
-  * Node 2: Student Service -> http://localhost:3002
-  * Node 3: Course Service -> http://localhost:3003
-  * Node 4: KRS Service -> http://localhost:3004
-  * Node 5: Notification Service -> http://localhost:3005
+- Port Mapping Default:
+  - Node 1: Client CLI (No HTTP Listener)
+  - Node 2: Student Service -> http://localhost:3002
+  - Node 3: Course Service -> http://localhost:3003
+  - Node 4: KRS Service -> http://localhost:3004
+  - Node 5: Notification Service -> http://localhost:3005
 
-* Response Format: Semua HTTP response dari service wajib menggunakan format JSON standar:
+- Response Format: Semua HTTP response dari service wajib menggunakan format JSON standar:
   ```json
   {
     "success": true,
