@@ -110,4 +110,4 @@ npm run node5
 
 ## 4. Aturan Kontribusi
 
-Lihat file CONTRIBUTE.md untuk aturan lengkap kontribusi dan isolasi tugas per node.
+Lihat file CONTRIBUTING.md untuk aturan lengkap kontribusi dan isolasi tugas per node.
