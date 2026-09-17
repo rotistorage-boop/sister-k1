@@ -20,7 +20,8 @@
     "seed:node5": "cd src/node5-notification && tsx src/db/seed.ts",
     "db:setup5": "npm run migrate:node5 && npm run seed:node5",
     "db:setup:all": "npm run db:setup2 && npm run db:setup3 && npm run db:setup4 && npm run db:setup5",
-    "start:all": "npx concurrently \"npm run node1\" \"npm run node2\" \"npm run node3\" \"npm run node4\" \"npm run node5\""
+    "start:all": "npx concurrently \"npm run node1\" \"npm run node2\" \"npm run node3\" \"npm run node4\" \"npm run node5\"",
+    "test": "tsx tests/run-all.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
