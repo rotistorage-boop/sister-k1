@@ -1,6 +1,10 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import studentRoute from "./routes/student.route";
+import dotenv from "dotenv";
+import studentRoute from "./routes/student.route.js";
+
+dotenv.config({ path: "../../.env" });
+dotenv.config();
 
 const app = new Hono();
 
@@ -16,4 +20,3 @@ serve({
   port,
   hostname,
 });
-
