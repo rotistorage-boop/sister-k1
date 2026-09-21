@@ -8,10 +8,10 @@ Project ini merupakan simulasi Sistem Terdistribusi berbasis Hono, TypeScript, D
 
 Sebelum menjalankan aplikasi, pastikan environment berikut telah terinstall di sistem Anda:
 
-* Node.js (v18.0.0 atau lebih baru)
-* npm atau pnpm
-* TypeScript (dijalankan via tsx)
-* SQLite (via better-sqlite3 dan drizzle-orm)
+- Node.js 22.xx latest
+- npm atau pnpm
+- TypeScript (dijalankan via tsx)
+- SQLite (via better-sqlite3 dan drizzle-orm)
 
 ---
 
