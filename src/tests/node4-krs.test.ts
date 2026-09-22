@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.KRS_SERVICE_URL || "http://localhost:3004";
+const BASE_URL = process.env.KRS_SERVICE_URL as string;
 
 describe("Node 4: KRS Server API Tests", () => {
   it("POST /submit - Harus berhasil submit KRS dengan RPC ke Node 2 & 3", async () => {

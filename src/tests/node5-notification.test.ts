@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3005";
+const BASE_URL = process.env.NOTIFICATION_SERVICE_URL as string;
 
 describe("Node 5: Notification Server API Tests", () => {
   it("POST /notify - Harus berhasil menerima dan menyimpan notifikasi baru", async () => {

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.STUDENT_SERVICE_URL || "http://localhost:3002";
+const BASE_URL = process.env.STUDENT_SERVICE_URL as string;
 
 describe("Node 2: Student Server API Tests", () => {
   it("GET / - Harus mengembalikan semua data mahasiswa", async () => {

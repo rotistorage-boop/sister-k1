@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.COURSE_SERVICE_URL || "http://localhost:3003";
+const BASE_URL = process.env.COURSE_SERVICE_URL as string;
 
 describe("Node 3: Course Server API Tests", () => {
   it("GET / - Harus mengembalikan semua daftar mata kuliah", async () => {
