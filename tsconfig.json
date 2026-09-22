@@ -10,7 +10,9 @@
     "jsxImportSource": "hono/jsx",
     "rootDir": ".",
     "outDir": "./dist",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules"]
