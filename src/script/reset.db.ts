@@ -6,7 +6,7 @@ const dbs = [
     "src/node2-student/student.db",
     "src/node3-course/course.db",
     "src/node4-krs/krs.db",
-    "src/node5-notification/notification.db"
+    "src/node5-schedule/schedule.db"
 ];
 
 const basePath = process.cwd();
