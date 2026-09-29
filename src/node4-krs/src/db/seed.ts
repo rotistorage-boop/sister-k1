@@ -9,15 +9,12 @@ async function seed() {
       .values([
         {
           nim: "240411100000",
-          status: "approved",
         },
         {
           nim: "240411100034",
-          status: "pending",
         },
         {
           nim: "240411100021",
-          status: "rejected",
         },
       ])
       .run();
