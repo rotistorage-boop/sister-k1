@@ -31,7 +31,6 @@ export async function createKrsService(nim: string, courseIds: number[]) {
     .insert(krs)
     .values({
       nim,
-      status: "approved",
     })
     .returning()
     .get();
