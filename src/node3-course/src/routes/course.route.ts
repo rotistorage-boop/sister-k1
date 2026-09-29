@@ -1,14 +1,22 @@
 import { Hono } from "hono";
 import {
-  getAllCourseHandler,
+  getAllCoursesHandler,
   getCourseByKodeHandler,
   getCourseByIdHandler,
-} from "../controllers/course.controller";
+  checkQuotaHandler,
+} from "../controllers/course.controller.js";
+import { createJsonRpcRouter } from "../../../utils/jsonrpc.util.js";
 
 const courseRoute = new Hono();
 
-courseRoute.get("/", getAllCourseHandler);
-courseRoute.get("/id/:id", getCourseByIdHandler);
-courseRoute.get("/:kode", getCourseByKodeHandler);
+const rpcHandler = createJsonRpcRouter({
+  getAllCourses: getAllCoursesHandler,
+  getCourseByKode: getCourseByKodeHandler,
+  getCourseById: getCourseByIdHandler,
+  checkQuota: checkQuotaHandler,
+});
+
+courseRoute.post("/", rpcHandler);
+courseRoute.post("/rpc", rpcHandler);
 
 export default courseRoute;
