@@ -1,179 +1,154 @@
-# CONCEPT.md - Konsep Sistem Akademik Terdistribusi (RPC + AMI)
+# CONCEPT.md - Konsep Sistem Akademik Terdistribusi (JSON-RPC 2.0)
 
-Simulasi sistem KRS (Kartu Rencana Studi) sederhana yang terdiri dari 5 node/program terpisah, mendemonstrasikan dua pola komunikasi antar-service dalam sistem terdistribusi:
-
-* RPC (Remote Procedure Call): synchronous HTTP request/response. Pemanggil mengirim request dan menunggu hasilnya sebelum lanjut.
-* AMI (Asynchronous Method Invocation): pemanggil mengirim request lalu langsung lanjut tanpa menunggu proses selesai.
-
-Catatan: RPC di sistem ini diimplementasikan sebagai HTTP request/response (via Hono.js di Node.js/TypeScript), bukan protokol RPC baku seperti gRPC/XML-RPC/JSON-RPC. Yang membedakan RPC vs AMI di sini murni dari pola pemanggilannya (blocking vs non-blocking), bukan dari protokol jaringannya.
+Dokumentasi ini menjelaskan simulasi sistem KRS (Kartu Rencana Studi) terdistribusi yang terdiri dari 5 node/service independen, dengan menerapkan Remote Procedure Call (RPC) secara penuh berbasis protokol standar JSON-RPC 2.0.
 
 ---
 
-## 1. Arsitektur
+## 1. Arsitektur Topologi Sistem
 
-```text
-                    +-------------------+
-                    |      NODE 1       |
-                    |   Student Client  |
-                    |     (Mahasiswa)   |
-                    +---------+---------+
-                              |
-                       RPC (synchronous)
-                              |
-         +--------------------+--------------------+
-         |                    |                    |
-         v                    v                    v
-+------------------+ +------------------+ +------------------+
-|      NODE 2      | |      NODE 3      | |      NODE 4      |
-|  Student Server  | |  Course Server   | |    KRS Server    |
-|    student.db    | |    course.db     | |      krs.db      |
-+------------------+ +------------------+ +---------+--------+
-                                                    |
-                                            AMI (asynchronous)
-                                                    |
-                                                    v
-                                          +------------------+
-                                          |      NODE 5      |
-                                          |   Notification   |
-                                          | notification.db  |
-                                          +------------------+
+```mermaid
+flowchart TD
+    subgraph ClientLayer [Client Layer]
+        N1["Node 1: Student Client (CLI)"]
+    end
+
+    subgraph ServiceLayer [Core Services - Synchronous RPC]
+        N2["Node 2: Student Server<br/>Port 3002<br/>DB: student.db"]
+        N3["Node 3: Course Server<br/>Port 3003<br/>DB: course.db"]
+        N4["Node 4: KRS Server<br/>Orchestrator<br/>Port 3004<br/>DB: krs.db"]
+        N5["Node 5: Schedule Server<br/>Port 3005<br/>DB: schedule.db"]
+    end
+
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+
+    N4 -.->|RPC Sync| N2
+    N4 -.->|RPC Sync| N3
+    N4 -.->|RPC Sync| N5
 ```
 
-Poin penting: Node 4 bukan cuma menerima request dari Node 1. Saat memproses submitKRS, Node 4 juga jadi client yang memanggil balik Node 2 (checkStudentStatus) dan Node 3 (checkQuota) via RPC untuk validasi, sebelum akhirnya menyimpan data dan mengirim notifikasi secara asinkron ke Node 5.
-
 ---
 
-## 2. Ringkasan Node
+## 2. Diagram Alur Lengkap: Submit KRS (Full RPC Flow)
 
-| Node | Peran | Database | Port |
-| --- | --- | --- | --- |
-| Node 1 | Student Client (UI/CLI mahasiswa) | - | - |
-| Node 2 | Student Server | student.db | 3002 |
-| Node 3 | Course Server | course.db | 3003 |
-| Node 4 | KRS Server (orkestrator) | krs.db | 3004 |
-| Node 5 | Notification Server | notification.db | 3005 |
+Diagram sekuensial berikut mendemonstrasikan bagaimana seluruh komunikasi antar-node menggunakan RPC (Blocking Synchronous) saat seorang mahasiswa melakukan pengisian KRS:
 
----
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Mahasiswa Node 1
+    participant N4 as Node 4 KRS Server
+    participant N2 as Node 2 Student Server
+    participant N3 as Node 3 Course Server
+    participant N5 as Node 5 Schedule Server
 
-## 3. Mana RPC, Mana AMI
+    User->>N4: 1. POST /rpc (submitKrs, id: 101)
+    
+    activate N4
+    Note over N4,N2: Validasi Status Mahasiswa via RPC (Blocking)
+    N4->>N2: 2. POST /rpc (checkStudentStatus, id: 201)
+    activate N2
+    N2-->>N4: 3. Result: status aktif (id: 201)
+    deactivate N2
 
-| Method | Dipanggil oleh -> tujuan | Mekanisme | Alasan |
-| --- | --- | --- | --- |
-| getStudent(nim) | Node 1 -> Node 2 | RPC | Hasil dibutuhkan langsung untuk ditampilkan |
-| checkStudentStatus(nim) | Node 1 -> Node 2, Node 4 -> Node 2 | RPC | Validasi harus selesai sebelum lanjut |
-| getCourses() | Node 1 -> Node 3 | RPC | Hasil dibutuhkan langsung |
-| getCourse(courseId) | Node 1 -> Node 3 | RPC | Hasil dibutuhkan langsung |
-| checkQuota(courseId) | Node 4 -> Node 3 | RPC | Validasi harus selesai sebelum KRS disimpan |
-| submitKRS(nim, courses) | Node 1 -> Node 4 | RPC | Mahasiswa perlu tahu KRS berhasil/gagal saat itu juga |
-| getKRS(nim) | Node 1 -> Node 4 | RPC | Hasil dibutuhkan langsung |
-| sendNotification(nim, message) | Node 4 -> Node 5 | AMI | KRS sudah selesai diproses; kirim notifikasi tidak perlu ditunggu |
+    Note over N4,N3: Validasi Kuota Matkul via RPC (Blocking)
+    N4->>N3: 4. POST /rpc (checkQuota, id: 301)
+    activate N3
+    N3-->>N4: 5. Result: kuota tersedia (id: 301)
+    deactivate N3
 
-Prinsip: RPC dipakai kalau pemanggil butuh hasilnya untuk melanjutkan logika berikutnya. AMI dipakai kalau pemanggil tidak peduli kapan prosesnya selesai, cukup tahu request sudah diterima.
+    Note over N4,N5: Cek Konflik Jadwal via RPC (Blocking)
+    N4->>N5: 6. POST /rpc (checkScheduleConflict, id: 501)
+    activate N5
+    N5-->>N4: 7. Result: tidak ada konflik (id: 501)
+    deactivate N5
 
----
+    Note over N4: 8. Simpan ke Database Lokal krs.db
 
-## 4. Alur Lengkap: Mahasiswa Mengisi KRS
-
-```text
-1. Node 1 --RPC: getStudent(nim)-------------> Node 2
-   Node 1 <----------------------------------- {nama, status}
-
-2. Node 1 --RPC: getCourses()----------------> Node 3
-   Node 1 <----------------------------------- [daftar mata kuliah]
-
-3. Node 1 --RPC: submitKRS(nim, [kode_mk])---> Node 4
-                                                  |
-                                                  +-- RPC: checkStudentStatus(nim) -> Node 2 (tunggu balasan)
-                                                  |
-                                                  +-- RPC: checkQuota(courseId) -> Node 3 (tunggu balasan)
-                                                  |
-                                                  +-- simpan ke krs.db
-                                                  |
-   Node 1 <---- response "KRS berhasil" ----------+
-                                                  |
-                                                  +-- AMI: sendNotification(nim, msg) -> Node 5
-                                                       (TIDAK ditunggu, Node 4 sudah selesai
-                                                        merespons Node 1 di langkah sebelumnya)
-                                                                                         |
-                                                                                         v
-                                                                              Node 5 simpan ke
-                                                                              notification.db
+    N4-->>User: 9. Result: KRS berhasil disimpan (id: 101)
+    deactivate N4
 ```
 
-Yang membuktikan ini AMI: Node 1 sudah menerima "KRS berhasil" duluan, sebelum Node 5 selesai memproses notifikasi. Kalau Node 5 mati/lambat, proses submitKRS di Node 1 tetap sukses dan tidak ikut lambat.
+---
+
+## 3. Flowchart Logika Eksekusi Node 4 (Orkestrator)
+
+```mermaid
+flowchart TD
+    A["Mulai: Terima Request submitKrs"] --> B{"Validasi Parameter Input"}
+    B -- "Tidak Valid" --> C["Return Error: Invalid Params"]
+    B -- "Valid" --> D["Panggil RPC Node 2: checkStudentStatus"]
+
+    D --> E{"Mahasiswa Aktif?"}
+    E -- "Tidak" --> F["Return Error: Mahasiswa Tidak Aktif"]
+    E -- "Ya" --> G["Panggil RPC Node 3: checkQuota"]
+
+    G --> H{"Kuota Tersedia?"}
+    H -- "Habis" --> I["Return Error: Kuota Habis"]
+    H -- "Tersedia" --> J["Panggil RPC Node 5: checkScheduleConflict"]
+
+    J --> K{"Jadwal Bentrok?"}
+    K -- "Bentrok" --> L["Return Error: Jadwal Bentrok"]
+    K -- "Tidak Bentrok" --> M["Simpan Data ke Database krs.db"]
+
+    M --> N["Return JSON-RPC Success ke Node 1"]
+```
 
 ---
 
-## 5. Skema Database per Node
+## 4. Mekanisme RPC (Spesifikasi JSON-RPC 2.0)
 
-### Node 2 - student.db, tabel students
+Seluruh komunikasi antar-node menggunakan pola RPC Synchronous (Blocking Request/Response):
 
-| Field | Tipe | Contoh |
-| --- | --- | --- |
-| id | int, PK | 1 |
-| nim | varchar | 230001 |
-| nama | varchar | Budi |
-| status | varchar | aktif |
-
-### Node 3 - course.db, tabel courses
-
-| Field | Tipe | Contoh |
-| --- | --- | --- |
-| id | int, PK | 10 |
-| kode | varchar | IF101 |
-| nama | varchar | Pemrograman Web |
-| sks | int | 3 |
-| kuota | int | 30 |
-
-### Node 4 - krs.db, tabel krs dan krs_details
-
-```text
-krs
-- id (PK)
-- nim
-- status (pending / approved / rejected)
-- created_at
-
-krs_details
-- id (PK)
-- krs_id (FK -> krs.id)
-- course_id
+```mermaid
+flowchart LR
+    subgraph RPC_Box [Pola RPC Synchronous]
+        direction TB
+        C1["Caller / Client"] -->|Request dengan ID| S1["Server"]
+        S1 -->|Response Result dengan ID| C1
+    end
 ```
 
-### Node 5 - notification.db, tabel notifications
-
-| Field | Tipe | Contoh |
-| --- | --- | --- |
-| id | int, PK | 1 |
-| nim | varchar | 230001 |
-| message | varchar | KRS berhasil |
-| status | varchar | sent |
-
-Setiap node punya database sendiri (pola database-per-service). Tidak ada node yang mengakses DB milik node lain secara langsung, semua harus lewat pemanggilan RPC/AMI.
+Setiap request JSON-RPC 2.0 wajib menyertakan field `id` dan server wajib mengembalikan response dengan `id` yang sama. Caller akan menunggu (blocking) sampai response diterima sebelum melanjutkan eksekusi.
 
 ---
 
-## 6. Implementasi Kunci: Membedakan RPC vs AMI di Hono / Node.js
+## 5. Ringkasan Node dan Port
 
-RPC (blocking) - di Node 4 saat validasi ke Node 2/3:
+| Node | Peran | Database | Port | Endpoint |
+| :--- | :--- | :--- | :--- | :--- |
+| **Node 1** | Student Client (CLI) | - | - | Client Only |
+| **Node 2** | Student Server | `student.db` | `3002` | `POST /rpc` |
+| **Node 3** | Course Server | `course.db` | `3003` | `POST /rpc` |
+| **Node 4** | KRS Server (Orkestrator) | `krs.db` | `3004` | `POST /rpc` |
+| **Node 5** | Schedule Server | `schedule.db` | `3005` | `POST /rpc` |
 
-```typescript
-const res = await fetch(`${STUDENT_SERVICE_URL}/students/${nim}/status`);
-const status = await res.json(); // baris ini BARU jalan setelah Node 2 membalas
-```
+---
 
-AMI (non-blocking) - di Node 4 saat kirim notifikasi ke Node 5:
+## 6. Daftar Method JSON-RPC 2.0 per Node
 
-```typescript
-// Tanpa await di pemanggilan fetch notifikasi:
-fetch(`${NOTIFICATION_SERVICE_URL}/notify`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ nim, message: "KRS berhasil" }),
-}).catch((err) => console.error("Gagal kirim notifikasi:", err));
+### Node 2 (Student Server)
+* `getAllStudents`: `params: {}` -> Mengambil semua data mahasiswa.
+* `getStudentByNim`: `params: { nim }` -> Mencari mahasiswa berdasarkan NIM.
+* `getStudentStatus`: `params: { nim }` -> Mengecek status keaktifan (aktif, cuti, non-aktif).
+* `createStudent`: `params: { nim, nama, status }` -> Menambahkan mahasiswa baru.
 
-// response ke Node 1 langsung dikirim, tidak menunggu fetch ke Node 5 selesai
-return c.json({ status: "KRS berhasil disimpan" });
-```
+### Node 3 (Course Server)
+* `getAllCourses`: `params: {}` -> Mengambil semua mata kuliah.
+* `getCourseByKode`: `params: { kode }` -> Mencari mata kuliah berdasarkan kode.
+* `getCourseById`: `params: { id }` -> Mencari mata kuliah berdasarkan ID.
+* `checkQuota`: `params: { id }` -> Mengecek ketersediaan kuota.
 
-Kalau pemanggilan fetch notifikasi menggunakan await, itu otomatis menjadi RPC (blocking) lagi, bukan AMI.
+### Node 4 (KRS Server - Orkestrator)
+* `submitKrs`: `params: { nim, courseIds }` -> Orkestrasi validasi ke Node 2, 3, dan 5 via RPC, lalu simpan ke DB.
+* `getAllKrs`: `params: {}` -> Mengambil semua KRS yang telah diagregasi dengan detail matkul dari Node 3.
+* `getKrsById`: `params: { id }` -> Mengambil detail 1 KRS berdasarkan ID.
+* `getKrsByNim`: `params: { nim }` -> Mengambil daftar riwayat KRS per NIM.
+
+### Node 5 (Schedule Server)
+* `getScheduleByCourseId`: `params: { courseId }` -> Mengambil jadwal berdasarkan ID mata kuliah.
+* `getAllSchedules`: `params: {}` -> Mengambil seluruh daftar jadwal.
+* `getScheduleByDay`: `params: { day }` -> Mengambil jadwal berdasarkan hari tertentu.
+* `checkScheduleConflict`: `params: { courseIds }` -> Mengecek apakah ada bentrok jadwal antar mata kuliah yang dipilih.
