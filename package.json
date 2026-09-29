@@ -2,7 +2,9 @@
   "name": "tugasFix",
   "type": "module",
   "scripts": {
-    "node1": "tsx src/node1-client/index.ts",
+    "node1": "vite src/node1-client",
+    "node1:cli": "tsx src/node1-client/index.ts",
+    "node1:build": "vite build src/node1-client",
     "node2": "cd src/node2-student && tsx src/index.ts",
     "migrate:node2": "cd src/node2-student && npx drizzle-kit push",
     "seed:node2": "cd src/node2-student && tsx src/db/seed.ts",
@@ -15,32 +17,39 @@
     "migrate:node4": "cd src/node4-krs && npx drizzle-kit push",
     "seed:node4": "cd src/node4-krs && tsx src/db/seed.ts",
     "db:setup4": "npm run migrate:node4 && npm run seed:node4",
-    "node5": "cd src/node5-notification && tsx src/index.ts",
-    "migrate:node5": "cd src/node5-notification && npx drizzle-kit push",
-    "seed:node5": "cd src/node5-notification && tsx src/db/seed.ts",
+    "node5": "cd src/node5-schedule && tsx src/index.ts",
+    "migrate:node5": "cd src/node5-schedule && npx drizzle-kit push",
+    "seed:node5": "cd src/node5-schedule && tsx src/db/seed.ts",
     "db:setup5": "npm run migrate:node5 && npm run seed:node5",
     "db:setup:all": "npm run db:setup2 && npm run db:setup3 && npm run db:setup4 && npm run db:setup5",
     "db:reset": "tsx src/script/reset.db.ts",
     "start:all": "npx concurrently \"npm run node1\" \"npm run node2\" \"npm run node3\" \"npm run node4\" \"npm run node5\"",
-    "test2": "tsx src/tests/node2-student.test.ts",
-    "test3": "tsx src/tests/node3-course.test.ts",
-    "test4": "tsx src/tests/node4-krs.test.ts",
-    "test5": "tsx src/tests/node5-notification.test.ts",
-    "test": "tsx src/tests/run-all.ts"
+    "test2": "vitest run src/tests/node2-student.test.ts",
+    "test3": "vitest run src/tests/node3-course.test.ts",
+    "test4": "vitest run src/tests/node4-krs.test.ts",
+    "test5": "vitest run src/tests/node5-schedule.test.ts",
+    "test": "vitest run",
+    "zip": "git archive -o rpc-rmi.zip HEAD"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@hono/node-server": "^2.1.1",
     "better-sqlite3": "^13.0.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.8"
+    "hono": "^4.13.8",
+    "lucide": "^1.48.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.1",
+    "autoprefixer": "^10.6.1",
     "concurrently": "^9.1.2",
     "drizzle-kit": "^0.31.10",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
   }
 }
