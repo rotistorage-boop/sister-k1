@@ -1,15 +1,16 @@
-# Sistem Akademik Terdistribusi - Multi-Node Microservices
+# Sistem Akademik Terdistribusi - Multi-Node Microservices (JSON-RPC 2.0)
 
-Project ini merupakan simulasi Sistem Terdistribusi berbasis Hono, TypeScript, Drizzle ORM, dan SQLite yang terdiri dari 5 node independen.
+Project ini merupakan implementasi Sistem Terdistribusi berbasis protokol **JSON-RPC 2.0**, TypeScript, Hono, Drizzle ORM, dan SQLite yang terdiri dari 5 node independen.
+
+Sistem menerapkan **RPC (Remote Procedure Call):** Komunikasi sinkron antar-node dengan payload standar JSON-RPC 2.0 (`id`, `method`, `params`, `result`).
 
 ---
 
 ## 1. Requirements
 
-Sebelum menjalankan aplikasi, pastikan environment berikut telah terinstall di sistem Anda:
-
-- Node.js 22.xx latest
-- npm atau pnpm
+Pastikan environment berikut telah terinstall:
+- Node.js 20.x atau 22.x
+- npm / pnpm
 - TypeScript (dijalankan via tsx)
 - SQLite (via better-sqlite3 dan drizzle-orm)
 
@@ -18,96 +19,70 @@ Sebelum menjalankan aplikasi, pastikan environment berikut telah terinstall di s
 ## 2. Cara Menjalankan (How to Run)
 
 ### Step 1: Install Dependencies
-
-Jalankan perintah berikut di root project:
-
 ```bash
 npm install
 ```
 
-### Step 2: Setup Database & Migration (Node 2 hingga Node 5)
-
-Setiap Node Service (Node 2 - Node 5) menggunakan database SQLite terpisah. Sebelum menjalankan server, database harus di-migrate dan di-seed.
-
-Setup semua database sekaligus (Rekomendasi):
+### Step 2: Setup Database dan Migration (Node 2 hingga Node 5)
+Setiap Node Service mengelola database SQLite masing-masing:
 
 ```bash
+# Setup semua database sekaligus (Rekomendasi)
 npm run db:setup:all
 ```
 
-Atau setup per-node secara terpisah:
-
+Atau setup per-node secara manual:
 ```bash
-# Setup Node 2 (Student)
 npm run db:setup2
-
-# Setup Node 3 (Course)
 npm run db:setup3
-
-# Setup Node 4 (KRS)
 npm run db:setup4
-
-# Setup Node 5 (Notification)
 npm run db:setup5
 ```
 
 ### Step 3: Menjalankan Node Service
 
-Menjalankan seluruh node secara bersamaan:
-
+Jalankan seluruh node secara bersamaan:
 ```bash
 npm run start:all
 ```
 
-Atau menjalankan node secara individu di terminal terpisah:
-
+Atau jalankan per terminal:
 ```bash
-# Terminal 1: Node 1 Client CLI
+# Terminal 1: Node 1 Client CLI (JSON-RPC Client)
 npm run node1
 
-# Terminal 2: Node 2 Student Server
+# Terminal 2: Node 2 Student Server (:3002)
 npm run node2
 
-# Terminal 3: Node 3 Course Server
+# Terminal 3: Node 3 Course Server (:3003)
 npm run node3
 
-# Terminal 4: Node 4 KRS Server
+# Terminal 4: Node 4 KRS Server (:3004)
 npm run node4
 
-# Terminal 5: Node 5 Notification Server
+# Terminal 5: Node 5 Schedule Server (:3005)
 npm run node5
 ```
 
 ---
 
-## 3. Daftar Script (package.json)
+## 3. Menjalankan Automated Tests
 
-```json
-"scripts": {
-  "node1": "tsx src/node1-client/index.ts",
-  "node2": "cd src/node2-student && tsx src/index.ts",
-  "migrate:node2": "cd src/node2-student && npx drizzle-kit push",
-  "seed:node2": "cd src/node2-student && tsx src/db/seed.ts",
-  "db:setup2": "npm run migrate:node2 && npm run seed:node2",
-  "node3": "cd src/node3-course && tsx src/index.ts",
-  "migrate:node3": "cd src/node3-course && npx drizzle-kit push",
-  "seed:node3": "cd src/node3-course && tsx src/db/seed.ts",
-  "db:setup3": "npm run migrate:node3 && npm run seed:node3",
-  "node4": "cd src/node4-krs && tsx src/index.ts",
-  "migrate:node4": "cd src/node4-krs && npx drizzle-kit push",
-  "seed:node4": "cd src/node4-krs && tsx src/db/seed.ts",
-  "db:setup4": "npm run migrate:node4 && npm run seed:node4",
-  "node5": "cd src/node5-notification && tsx src/index.ts",
-  "migrate:node5": "cd src/node5-notification && npx drizzle-kit push",
-  "seed:node5": "cd src/node5-notification && tsx src/db/seed.ts",
-  "db:setup5": "npm run migrate:node5 && npm run seed:node5",
-  "db:setup:all": "npm run db:setup2 && npm run db:setup3 && npm run db:setup4 && npm run db:setup5",
-  "start:all": "npx concurrently \"npm run node1\" \"npm run node2\" \"npm run node3\" \"npm run node4\" \"npm run node5\""
-}
+Untuk memvalidasi pemanggilan RPC antar-node:
+```bash
+# Jalankan seluruh test suite
+npm run test
+
+# Atau jalankan test spesifik per node
+npm run test2
+npm run test3
+npm run test4
+npm run test5
 ```
 
 ---
 
-## 4. Aturan Kontribusi
-
-Lihat file CONTRIBUTING.md untuk aturan lengkap kontribusi dan isolasi tugas per node.
+## 4. Dokumentasi dan Panduan
+* [CONCEPT.md](CONCEPT.md): Penjelasan rinci arsitektur, spesifikasi JSON-RPC 2.0, dan alur submit KRS.
+* [RULE.md](RULE.md): Konfigurasi environment variabel per node.
+* [CONTRIBUTING.md](CONTRIBUTING.md): Batasan isolasi tugas per node dalam tim.
