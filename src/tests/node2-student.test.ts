@@ -1,50 +1,44 @@
-import test, { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import dotenv from "dotenv";
+import { callJsonRpc } from "../utils/jsonrpc.util.js";
+import { SERVICE_URLS } from "../utils/service-url.util.js";
 
 dotenv.config();
 
-const BASE_URL = process.env.STUDENT_SERVICE_URL as string;
+const BASE_URL = SERVICE_URLS.student();
 
-describe("Node 2: Student Server API Tests", () => {
-  it("GET / - Harus mengembalikan semua data mahasiswa", async () => {
-    const res = await fetch(BASE_URL);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(Array.isArray(body.data));
+describe("Node 2: Student Server (JSON-RPC 2.0 Tests)", () => {
+  it("getAllStudents - Harus mengembalikan semua data mahasiswa", async () => {
+    const students = await callJsonRpc(BASE_URL, "getAllStudents", {});
+    expect(Array.isArray(students)).toBe(true);
+    expect(students.length).toBeGreaterThan(0);
   });
 
-  it("POST / - Harus berhasil menambahkan mahasiswa baru", async () => {
+  it("createStudent - Harus berhasil menambahkan mahasiswa baru", async () => {
     const testNim = `TEST_${Date.now()}`;
-    const res = await fetch(BASE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nim: testNim,
-        nama: "Mahasiswa Test",
-        status: "aktif",
-      }),
+    const newStudent = await callJsonRpc(BASE_URL, "createStudent", {
+      nim: testNim,
+      nama: "Mahasiswa JSON-RPC",
+      status: "aktif",
     });
-    assert.strictEqual(res.status, 201);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.nim, testNim);
+    expect(newStudent.nim).toBe(testNim);
+    expect(newStudent.status).toBe("aktif");
   });
 
-  it("GET /:nim - Harus mengembalikan mahasiswa berdasarkan NIM", async () => {
-    const res = await fetch(`${BASE_URL}/240411100000`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.nim, "240411100000");
+  it("getStudentByNim - Harus mengembalikan mahasiswa berdasarkan NIM", async () => {
+    const student = await callJsonRpc(BASE_URL, "getStudentByNim", {
+      nim: "240411100000",
+    });
+    expect(student).toBeTruthy();
+    expect(student.nim).toBe("240411100000");
   });
 
-  it("GET /:nim/status - Harus mengembalikan status mahasiswa", async () => {
-    const res = await fetch(`${BASE_URL}/240411100000/status`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(body.data.status);
+  it("getStudentStatus - Harus mengembalikan status mahasiswa", async () => {
+    const statusData = await callJsonRpc(BASE_URL, "getStudentStatus", {
+      nim: "240411100000",
+    });
+    expect(statusData).toBeTruthy();
+    expect(statusData.nim).toBe("240411100000");
+    expect(statusData.status).toBe("aktif");
   });
 });
