@@ -1,17 +1,17 @@
-import { Context } from "hono";
 import {
   getKrsByIdService,
   getKrsByNimService,
   getAllKrsService,
   getKrsDetailByIdService,
   createKrsService,
-} from "../services/krs.service";
-import { successResponse, errorResponse } from "../../../utils/response.util";
+} from "../services/krs.service.js";
+import {
+  callJsonRpc,
+  JsonRpcError,
+  JSON_RPC_ERRORS,
+} from "../../../utils/jsonrpc.util.js";
 
-// Dibaca lazy (di dalam function) agar dotenv.config() sudah jalan duluan
-const getStudentServiceUrl = () => process.env.STUDENT_SERVICE_URL;
-const getCourseServiceUrl = () => process.env.COURSE_SERVICE_URL;
-const getNotificationServiceUrl = () => process.env.NOTIFICATION_SERVICE_URL;
+import { SERVICE_URLS } from "../../../utils/service-url.util.js";
 
 // Helper function untuk melakukan Application-Level Aggregation (Enrichment via RPC to Node 3)
 async function enrichKrsData(krsItem: any) {
@@ -19,13 +19,16 @@ async function enrichKrsData(krsItem: any) {
   const courseDetails = await Promise.all(
     details.map(async (d) => {
       try {
-        const res = await fetch(`${getCourseServiceUrl()}/id/${d.courseId}`);
-        if (res.ok) {
-          const body = await res.json();
-          return body.data;
-        }
-      } catch {}
-      return { id: d.courseId, nama: "Unknown Course" };
+        const course = await callJsonRpc(
+          SERVICE_URLS.course(),
+          "getCourseById",
+          { id: d.courseId },
+          { timeoutMs: 3000 },
+        );
+        return course;
+      } catch {
+        return { id: d.courseId, nama: "Unknown Course" };
+      }
     }),
   );
   return {
@@ -34,176 +37,145 @@ async function enrichKrsData(krsItem: any) {
   };
 }
 
-export async function submitKrsHandler(c: Context) {
-  try {
-    const body = await c.req.json();
-    const { nim, courseIds } = body;
+export async function submitKrsHandler(params: {
+  nim: string;
+  courseIds: number[];
+}) {
+  const { nim, courseIds } = params || {};
 
-    if (
-      !nim ||
-      !courseIds ||
-      !Array.isArray(courseIds) ||
-      courseIds.length === 0
-    ) {
-      return errorResponse(
-        c,
-        "NIM and courseIds (non-empty array) are required",
-        400,
+  if (
+    !nim ||
+    !courseIds ||
+    !Array.isArray(courseIds) ||
+    courseIds.length === 0
+  ) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "NIM and courseIds (non-empty array) are required",
+    );
+  }
+
+  // 1. RPC Synchronous: Validasi Mahasiswa ke Node 2 (Student Server)
+  let studentData: any = null;
+  try {
+    studentData = await callJsonRpc(
+      SERVICE_URLS.student(),
+      "checkStudentStatus",
+      { nim },
+      { timeoutMs: 5000 },
+    );
+
+    if (studentData.status !== "aktif") {
+      throw new JsonRpcError(
+        JSON_RPC_ERRORS.BAD_REQUEST.code,
+        `Mahasiswa dengan NIM ${nim} tidak aktif (Status: ${studentData.status})`,
       );
     }
+  } catch (err: any) {
+    if (err instanceof JsonRpcError) throw err;
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
+      `Gagal menghubungi Node 2 (Student Server): ${err.message}`,
+    );
+  }
 
-    // 1. RPC: Validasi Mahasiswa ke Node 2 (Student Server)
-    let studentData: any = null;
+  // 2. RPC Synchronous: Validasi Kuota Course ke Node 3 (Course Server)
+  const validCourses: any[] = [];
+  for (const cid of courseIds) {
     try {
-      // const studentRes = await fetch(`${STUDENT_SERVICE_URL}/${nim}/status`);
-      const studentRes = await fetch(
-        `${getStudentServiceUrl()}/${nim}/status`,
-        {
-          signal: AbortSignal.timeout(5000),
-        },
+      const course = await callJsonRpc(
+        SERVICE_URLS.course(),
+        "checkQuota",
+        { id: cid },
+        { timeoutMs: 5000 },
       );
-      if (!studentRes.ok) {
-        return errorResponse(
-          c,
-          `Mahasiswa dengan NIM ${nim} tidak ditemukan di Node 2`,
-          404,
-        );
-      }
-      const studentBody = await studentRes.json();
-      studentData = studentBody.data;
 
-      if (studentData.status !== "aktif") {
-        return errorResponse(
-          c,
-          `Mahasiswa dengan NIM ${nim} tidak aktif (Status: ${studentData.status})`,
-          400,
+      if (course.kuota <= 0) {
+        throw new JsonRpcError(
+          JSON_RPC_ERRORS.BAD_REQUEST.code,
+          `Kuota untuk Mata Kuliah ${course.nama} (ID: ${cid}) sudah habis`,
         );
       }
+      validCourses.push(course);
     } catch (err: any) {
-      // return errorResponse(c, `Gagal menghubungi Node 2 (Student Service): ${err.message}`, 503);
-      return errorResponse(
-        c,
-        `Gagal menghubungi Node 2 (${getStudentServiceUrl()}): ${err.message}`,
-        503,
+      if (err instanceof JsonRpcError) throw err;
+      throw new JsonRpcError(
+        JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
+        `Gagal menghubungi Node 3 (Course Server): ${err.message}`,
       );
     }
+  }
 
-    // 2. RPC: Validasi Course ke Node 3 (Course Server)
-    const validCourses: any[] = [];
-    for (const cid of courseIds) {
-      try {
-        const courseRes = await fetch(`${getCourseServiceUrl()}/id/${cid}`);
-        if (!courseRes.ok) {
-          return errorResponse(
-            c,
-            `Mata Kuliah ID ${cid} tidak ditemukan di Node 3`,
-            404,
-          );
-        }
-        const courseBody = await courseRes.json();
-        const course = courseBody.data;
-        if (course.kuota <= 0) {
-          return errorResponse(
-            c,
-            `Kuota untuk Mata Kuliah ${course.nama} (ID: ${cid}) sudah habis`,
-            400,
-          );
-        }
-        validCourses.push(course);
-      } catch (err: any) {
-        // return errorResponse(c, `Gagal menghubungi Node 3 (Course Service): ${err.message}`, 503);
-        return errorResponse(
-          c,
-          `Gagal menghubungi Node 3 (${getCourseServiceUrl()}): ${err.message}`,
-          503,
-        );
-      }
-    }
+  // 3. RPC Synchronous: Cek Konflik Jadwal ke Node 5 (Schedule Server)
+  let scheduleResult: any = null;
+  try {
+    scheduleResult = await callJsonRpc(
+      SERVICE_URLS.schedule(),
+      "checkScheduleConflict",
+      { courseIds },
+      { timeoutMs: 5000 },
+    );
 
-    // 3. Simpan KRS ke DB lokal Node 4
-    const newKrs = await createKrsService(nim, courseIds);
-
-    // 4. AMI (Asynchronous Method Invocation): Kirim notifikasi ke Node 5 tanpa await (non-blocking)
-    fetch(`${getNotificationServiceUrl()}/notify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nim,
-        message: `KRS berhasil diajukan untuk ${validCourses.map((c) => c.nama).join(", ")}`,
-      }),
-    }).catch((err) => {
-      console.error(
-        "[AMI Notification Error] Gagal mengirim notifikasi ke Node 5:",
-        err.message,
+    if (scheduleResult.hasConflict) {
+      throw new JsonRpcError(
+        JSON_RPC_ERRORS.BAD_REQUEST.code,
+        `Terdapat konflik jadwal: ${scheduleResult.conflicts.join("; ")}`,
       );
-    });
-
-    return successResponse(
-      c,
-      {
-        krs: newKrs,
-        student: studentData,
-        courses: validCourses,
-      },
-      "KRS berhasil disimpan",
-      201,
+    }
+  } catch (err: any) {
+    if (err instanceof JsonRpcError) throw err;
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
+      `Gagal menghubungi Node 5 (Schedule Server): ${err.message}`,
     );
-  } catch (err) {
-    return errorResponse(c, "Gagal memproses submit KRS", 500, err);
   }
+
+  // 4. Simpan KRS ke DB lokal Node 4
+  const newKrs = await createKrsService(nim, courseIds);
+
+  return {
+    krs: newKrs,
+    student: studentData,
+    courses: validCourses,
+    scheduleCheck: scheduleResult,
+    status: "KRS berhasil disimpan",
+  };
 }
 
-export async function getAllKrsHandler(c: Context) {
-  try {
-    const allKrs = await getAllKrsService();
-    const enrichedList = await Promise.all(
-      allKrs.map((item) => enrichKrsData(item)),
-    );
-    return successResponse(c, enrichedList, "All KRS retrieved successfully");
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve KRS list", 500, err);
-  }
+export async function getAllKrsHandler(_params?: any) {
+  const allKrs = await getAllKrsService();
+  return await Promise.all(allKrs.map((item) => enrichKrsData(item)));
 }
 
-export async function getKrsByIdHandler(c: Context) {
-  try {
-    const rawId = c.req.param("id");
-    const id = Number(rawId);
-
-    if (!rawId || isNaN(id)) {
-      return errorResponse(c, "Valid KRS ID is required", 400);
-    }
-
-    const krsData = await getKrsByIdService(id);
-    if (!krsData) {
-      return errorResponse(c, "KRS not found", 404);
-    }
-
-    const enriched = await enrichKrsData(krsData);
-    return successResponse(c, enriched, "KRS retrieved successfully");
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve KRS", 500, err);
+export async function getKrsByIdHandler(params: { id: number | string }) {
+  const id = Number(params?.id);
+  if (isNaN(id)) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "Valid KRS ID is required",
+    );
   }
+
+  const krsData = await getKrsByIdService(id);
+  if (!krsData) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.NOT_FOUND.code,
+      `KRS with ID ${id} not found`,
+    );
+  }
+
+  return await enrichKrsData(krsData);
 }
 
-export async function getKrsByNimHandler(c: Context) {
-  try {
-    const nim = c.req.param("nim");
-    if (!nim) {
-      return errorResponse(c, "NIM is required", 400);
-    }
-
-    const list = await getKrsByNimService(nim);
-    const enrichedList = await Promise.all(
-      list.map((item) => enrichKrsData(item)),
+export async function getKrsByNimHandler(params: { nim: string }) {
+  const { nim } = params || {};
+  if (!nim) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "NIM is required",
     );
-
-    return successResponse(
-      c,
-      enrichedList,
-      "KRS list by NIM retrieved successfully",
-    );
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve KRS list by NIM", 500, err);
   }
+
+  const list = await getKrsByNimService(nim);
+  return await Promise.all(list.map((item) => enrichKrsData(item)));
 }
