@@ -1,33 +1,36 @@
-import test, { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import dotenv from "dotenv";
+import { callJsonRpc } from "../utils/jsonrpc.util.js";
+import { SERVICE_URLS } from "../utils/service-url.util.js";
 
 dotenv.config();
 
-const BASE_URL = process.env.COURSE_SERVICE_URL as string;
+const BASE_URL = SERVICE_URLS.course();
 
-describe("Node 3: Course Server API Tests", () => {
-  it("GET / - Harus mengembalikan semua daftar mata kuliah", async () => {
-    const res = await fetch(BASE_URL);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(Array.isArray(body.data));
+describe("Node 3: Course Server (JSON-RPC 2.0 Tests)", () => {
+  it("getAllCourses - Harus mengembalikan semua daftar mata kuliah", async () => {
+    const courses = await callJsonRpc(BASE_URL, "getAllCourses", {});
+    expect(Array.isArray(courses)).toBe(true);
+    expect(courses.length).toBeGreaterThan(0);
   });
 
-  it("GET /:kode - Harus mengembalikan mata kuliah berdasarkan kode", async () => {
-    const res = await fetch(`${BASE_URL}/IF101`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.kode, "IF101");
+  it("getCourseByKode - Harus mengembalikan mata kuliah berdasarkan kode", async () => {
+    const course = await callJsonRpc(BASE_URL, "getCourseByKode", { kode: "IF101" });
+    expect(course).toBeTruthy();
+    expect(course.kode).toBe("IF101");
   });
 
-  it("GET /id/:id - Harus mengembalikan mata kuliah berdasarkan ID", async () => {
-    const res = await fetch(`${BASE_URL}/id/1`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.id, 1);
+  it("getCourseById - Harus mengembalikan mata kuliah berdasarkan ID", async () => {
+    const course = await callJsonRpc(BASE_URL, "getCourseById", { id: 1 });
+    expect(course).toBeTruthy();
+    expect(course.id).toBe(1);
+  });
+
+  it("checkQuota - Harus mengembalikan kuota dan ketersediaan mata kuliah", async () => {
+    const quotaData = await callJsonRpc(BASE_URL, "checkQuota", { id: 1 });
+    expect(quotaData).toBeTruthy();
+    expect(quotaData.id).toBe(1);
+    expect(typeof quotaData.kuota).toBe("number");
+    expect(typeof quotaData.isAvailable).toBe("boolean");
   });
 });
