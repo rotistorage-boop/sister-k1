@@ -1,52 +1,77 @@
-import { Context } from "hono";
-import { errorResponse, successResponse } from "../../../utils/response.util";
 import {
   getAllCourseService,
   getCourseByKodeService,
   getCourseByIdService,
-} from "../services/course.service";
+} from "../services/course.service.js";
+import { JsonRpcError, JSON_RPC_ERRORS } from "../../../utils/jsonrpc.util.js";
 
-export async function getCourseByKodeHandler(c: Context) {
-  try {
-    const kode = c.req.param("kode");
-    if (!kode) {
-      return errorResponse(c, "Kode is required", 400);
-    }
-
-    const course = await getCourseByKodeService(kode);
-    if (!course) {
-      return errorResponse(c, "Kode not found", 404);
-    }
-
-    return successResponse(c, course, "Course retrieved successfully");
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve course", 500, err);
-  }
+export async function getAllCoursesHandler(_params?: any) {
+  return await getAllCourseService();
 }
 
-export async function getCourseByIdHandler(c: Context) {
-  try {
-    const id = Number(c.req.param("id"));
-    if (isNaN(id)) {
-      return errorResponse(c, "Invalid Course ID", 400);
-    }
-
-    const course = await getCourseByIdService(id);
-    if (!course) {
-      return errorResponse(c, "Course not found", 404);
-    }
-
-    return successResponse(c, course, "Course retrieved successfully");
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve course", 500, err);
+export async function getCourseByKodeHandler(params: { kode: string }) {
+  const { kode } = params || {};
+  if (!kode) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "Kode mata kuliah is required",
+    );
   }
+
+  const course = await getCourseByKodeService(kode);
+  if (!course) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.NOT_FOUND.code,
+      `Mata kuliah dengan kode ${kode} tidak ditemukan`,
+    );
+  }
+
+  return course;
 }
 
-export async function getAllCourseHandler(c: Context) {
-  try {
-    const allCourse = await getAllCourseService();
-    return successResponse(c, allCourse, "All course retrieved successfully");
-  } catch (err) {
-    return errorResponse(c, "Failed to retrieve all course", 500, err);
+export async function getCourseByIdHandler(params: { id: number | string }) {
+  const id = Number(params?.id);
+  if (isNaN(id)) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "Valid course ID is required",
+    );
   }
+
+  const course = await getCourseByIdService(id);
+  if (!course) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.NOT_FOUND.code,
+      `Mata kuliah dengan ID ${id} tidak ditemukan`,
+    );
+  }
+
+  return course;
+}
+
+export async function checkQuotaHandler(params: { id: number | string }) {
+  const id = Number(params?.id);
+  if (isNaN(id)) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.INVALID_PARAMS.code,
+      "Valid course ID is required",
+    );
+  }
+
+  const course = await getCourseByIdService(id);
+  if (!course) {
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.NOT_FOUND.code,
+      `Mata kuliah dengan ID ${id} tidak ditemukan`,
+    );
+  }
+
+  return {
+    id: course.id,
+    kode: course.kode,
+    nama: course.nama,
+    sks: course.sks,
+    kuota: course.kuota,
+    isAvailable: course.kuota > 0,
+  };
 }
