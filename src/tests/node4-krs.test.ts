@@ -1,53 +1,48 @@
-import test, { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import dotenv from "dotenv";
+import { callJsonRpc } from "../utils/jsonrpc.util.js";
+import { SERVICE_URLS } from "../utils/service-url.util.js";
 
 dotenv.config();
 
-const BASE_URL = process.env.KRS_SERVICE_URL as string;
+const BASE_URL = SERVICE_URLS.krs();
 
-describe("Node 4: KRS Server API Tests", () => {
-  it("POST /submit - Harus berhasil submit KRS dengan RPC ke Node 2 & 3", async () => {
-    const res = await fetch(`${BASE_URL}/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nim: "240411100000",
-        courseIds: [1, 2],
-      }),
+describe("Node 4: KRS Server (JSON-RPC 2.0 Orchestrator Tests)", () => {
+  it("submitKrs - Harus berhasil submit KRS dengan RPC ke Node 2, 3, dan 5", async () => {
+    const res = await callJsonRpc(BASE_URL, "submitKrs", {
+      nim: "240411100000",
+      courseIds: [1, 2],
     });
-    assert.strictEqual(res.status, 201);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(body.data.krs);
-    assert.ok(Array.isArray(body.data.courses));
+    expect(res).toBeTruthy();
+    expect(res.krs).toBeTruthy();
+    expect(res.krs.nim).toBe("240411100000");
+    expect(Array.isArray(res.courses)).toBe(true);
+    expect(res.courses.length).toBe(2);
+    expect(res.student.status).toBe("aktif");
+    expect(res.scheduleCheck).toBeTruthy();
+    expect(res.scheduleCheck.hasConflict).toBe(false);
   });
 
-  it("GET / - Harus mengembalikan seluruh data KRS", async () => {
-    const res = await fetch(BASE_URL);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(Array.isArray(body.data));
+  it("getAllKrs - Harus mengembalikan seluruh data KRS yang telah diperkaya", async () => {
+    const list = await callJsonRpc(BASE_URL, "getAllKrs", {});
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBeGreaterThan(0);
   });
 
-  it("GET /student/:nim - Harus mengembalikan daftar KRS berdasarkan NIM beserta detail matkul", async () => {
-    const res = await fetch(`${BASE_URL}/student/240411100000`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.ok(Array.isArray(body.data));
-    if (body.data.length > 0) {
-      assert.ok(Array.isArray(body.data[0].courses));
+  it("getKrsByNim - Harus mengembalikan daftar KRS berdasarkan NIM beserta detail matkul", async () => {
+    const list = await callJsonRpc(BASE_URL, "getKrsByNim", {
+      nim: "240411100000",
+    });
+    expect(Array.isArray(list)).toBe(true);
+    if (list.length > 0) {
+      expect(Array.isArray(list[0].courses)).toBe(true);
     }
   });
 
-  it("GET /:id - Harus mengembalikan KRS spesifik berdasarkan ID beserta detail matkul", async () => {
-    const res = await fetch(`${BASE_URL}/1`);
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.strictEqual(body.success, true);
-    assert.strictEqual(body.data.id, 1);
-    assert.ok(Array.isArray(body.data.courses));
+  it("getKrsById - Harus mengembalikan KRS spesifik berdasarkan ID beserta detail matkul", async () => {
+    const krs = await callJsonRpc(BASE_URL, "getKrsById", { id: 1 });
+    expect(krs).toBeTruthy();
+    expect(krs.id).toBe(1);
+    expect(Array.isArray(krs.courses)).toBe(true);
   });
 });
