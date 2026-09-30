@@ -33,4 +33,19 @@ describe("Node 3: Course Server (JSON-RPC 2.0 Tests)", () => {
     expect(typeof quotaData.kuota).toBe("number");
     expect(typeof quotaData.isAvailable).toBe("boolean");
   });
+
+  it("createCourse - Harus berhasil menambahkan mata kuliah baru", async () => {
+    const testKode = `TEST${Date.now().toString().slice(-4)}`;
+    const newCourse = await callJsonRpc(BASE_URL, "createCourse", {
+      kode: testKode,
+      nama: "Testing Matkul Otomatis",
+      sks: 3,
+      kuota: 40,
+    });
+    expect(newCourse).toBeTruthy();
+    expect(newCourse.kode).toBe(testKode);
+    expect(newCourse.sks).toBe(3);
+    expect(newCourse.kuota).toBe(40);
+  });
 });
+
