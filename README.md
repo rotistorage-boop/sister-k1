@@ -1,8 +1,15 @@
-# Sistem Akademik Terdistribusi - Multi-Node Microservices (JSON-RPC 2.0)
+# Sistem Akademik Terdistribusi - Multi-Node Microservices (Hybrid RPC & RMI)
 
-Project ini merupakan implementasi Sistem Terdistribusi berbasis protokol **JSON-RPC 2.0**, TypeScript, Hono, Drizzle ORM, dan SQLite yang terdiri dari 5 node independen.
+Project ini merupakan implementasi Sistem Terdistribusi berbasis arsitektur **Hybrid RPC (*Remote Procedure Call*) & RMI (*Remote Method Invocation*)**, dibangun menggunakan TypeScript, Hono, Drizzle ORM, dan SQLite yang terdiri dari 5 node independen.
 
-Sistem menerapkan **RPC (Remote Procedure Call):** Komunikasi sinkron antar-node dengan payload standar JSON-RPC 2.0 (`id`, `method`, `params`, `result`).
+---
+
+## 🏛️ Paradigma Komunikasi Antar-Node
+
+1. **Node 2 (Student), Node 3 (Course), Node 4 (KRS Orchestrator):** Menggunakan protokol **JSON-RPC 2.0** (`id`, `method`, `params`, `result`).
+2. **Node 5 (Schedule Server):** Menggunakan konsep **RMI (Remote Method Invocation)** dengan *Remote Object*, *RMI Registry*, dan dynamic *Client Stub Proxy*.
+3. **Node 4 (KRS Orchestrator):** Memvalidasi pendaftaran KRS dengan memanggil Node 2 & 3 via JSON-RPC, serta memanggil Node 5 via RMI Stub Proxy.
+4. **Node 1 (Client):** Menyediakan Web UI dan CLI yang dapat berinteraksi dengan layanan RPC maupun RMI.
 
 ---
 
@@ -48,19 +55,22 @@ npm run start:all
 
 Atau jalankan per terminal:
 ```bash
-# Terminal 1: Node 1 Client CLI (JSON-RPC Client)
+# Terminal 1: Node 1 Client Web UI (Vite dev server di http://localhost:5173)
 npm run node1
 
-# Terminal 2: Node 2 Student Server (:3002)
+# Atau Terminal 1 Alternative: Node 1 Interactive CLI Client
+npm run node1:cli
+
+# Terminal 2: Node 2 Student Server (:3002 - RPC)
 npm run node2
 
-# Terminal 3: Node 3 Course Server (:3003)
+# Terminal 3: Node 3 Course Server (:3003 - RPC)
 npm run node3
 
-# Terminal 4: Node 4 KRS Server (:3004)
+# Terminal 4: Node 4 KRS Server (:3004 - RPC + RMI Client)
 npm run node4
 
-# Terminal 5: Node 5 Schedule Server (:3005)
+# Terminal 5: Node 5 Schedule Server (:3005 - RMI Registry & Remote Object)
 npm run node5
 ```
 
@@ -68,7 +78,7 @@ npm run node5
 
 ## 3. Menjalankan Automated Tests
 
-Untuk memvalidasi pemanggilan RPC antar-node:
+Untuk memvalidasi pemanggilan RPC dan RMI:
 ```bash
 # Jalankan seluruh test suite
 npm run test
@@ -83,6 +93,6 @@ npm run test5
 ---
 
 ## 4. Dokumentasi dan Panduan
-* [CONCEPT.md](CONCEPT.md): Penjelasan rinci arsitektur, spesifikasi JSON-RPC 2.0, dan alur submit KRS.
+* [CONCEPT.md](CONCEPT.md): Penjelasan rinci arsitektur hybrid, diagram sekuensial submit KRS, dan komparasi RPC vs RMI.
 * [RULE.md](RULE.md): Konfigurasi environment variabel per node.
 * [CONTRIBUTING.md](CONTRIBUTING.md): Batasan isolasi tugas per node dalam tim.
