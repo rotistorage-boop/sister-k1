@@ -33,6 +33,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: () => "/rpc",
       },
+      "/rmi/schedule": {
+        target: process.env.SCHEDULE_SERVICE_URL || "http://localhost:3005",
+        changeOrigin: true,
+        rewrite: () => "/rmi",
+      },
     },
   },
 });
