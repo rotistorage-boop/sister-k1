@@ -13,3 +13,17 @@ export async function getCourseByIdService(id: number) {
 export async function getAllCourseService() {
   return db.select().from(courses).all();
 }
+
+export async function createCourseService(
+  kode: string,
+  nama: string,
+  sks: number,
+  kuota: number,
+) {
+  return db
+    .insert(courses)
+    .values({ kode, nama, sks, kuota })
+    .returning()
+    .get();
+}
+
