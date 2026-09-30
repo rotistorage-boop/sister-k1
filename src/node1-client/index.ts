@@ -2,36 +2,46 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import dotenv from "dotenv";
 import { callJsonRpc } from "../utils/jsonrpc.util.js";
+import { createRmiProxy, RmiError } from "../utils/rmi.util.js";
+import type { IScheduleRemoteService } from "../node5-schedule/src/interfaces/schedule-remote.interface.js";
 import { SERVICE_URLS } from "../utils/service-url.util.js";
 
 dotenv.config();
 
 const rl = readline.createInterface({ input, output });
 
+// Dynamic RMI Client Stub Proxy untuk ScheduleService di Node 5
+function getScheduleRmiStub() {
+  return createRmiProxy<IScheduleRemoteService>(
+    SERVICE_URLS.scheduleRmi(),
+    "ScheduleService",
+  );
+}
+
 async function main() {
   while (true) {
     console.log("\n========================================================");
-    console.log("   NODE 1: STUDENT CLIENT (JSON-RPC 2.0 PROTOCOL)      ");
+    console.log("   NODE 1: STUDENT CLIENT (HYBRID RPC & RMI SYSTEM)     ");
     console.log("========================================================");
-    console.log("--- NODE 2: STUDENT SERVER (RPC) ---");
+    console.log("--- NODE 2: STUDENT SERVER (JSON-RPC 2.0) ---");
     console.log("1. Lihat Semua Mahasiswa");
     console.log("2. Cari Mahasiswa by NIM");
     console.log("3. Cek Status Mahasiswa by NIM");
     console.log("4. Tambah Mahasiswa Baru");
-    console.log("\n--- NODE 3: COURSE SERVER (RPC) ---");
+    console.log("\n--- NODE 3: COURSE SERVER (JSON-RPC 2.0) ---");
     console.log("5. Lihat Semua Mata Kuliah");
     console.log("6. Cari Mata Kuliah by Kode/ID");
     console.log("7. Cek Kuota Mata Kuliah by ID");
-    console.log("\n--- NODE 4: KRS SERVER (ORKESTRATOR RPC) ---");
-    console.log("8. Submit KRS Mahasiswa (RPC Node 2, 3, dan 5)");
+    console.log("\n--- NODE 4: KRS SERVER (ORKESTRATOR RPC + RMI) ---");
+    console.log("8. Submit KRS Mahasiswa (RPC Node 2, 3 + RMI Node 5)");
     console.log("9. Cari KRS Mahasiswa by NIM");
     console.log("10. Lihat Detail KRS by ID");
     console.log("11. Lihat Semua KRS");
-    console.log("\n--- NODE 5: SCHEDULE SERVER (RPC) ---");
-    console.log("12. Lihat Jadwal by Course ID");
-    console.log("13. Lihat Jadwal by Hari");
-    console.log("14. Lihat Semua Jadwal");
-    console.log("15. Cek Konflik Jadwal");
+    console.log("\n--- NODE 5: SCHEDULE SERVER (RMI - REMOTE OBJECT) ---");
+    console.log("12. Lihat Jadwal by Course ID (via RMI Proxy)");
+    console.log("13. Lihat Jadwal by Hari (via RMI Proxy)");
+    console.log("14. Lihat Semua Jadwal (via RMI Proxy)");
+    console.log("15. Cek Konflik Jadwal (via RMI Proxy)");
     console.log("16. Keluar");
 
     const choice = await rl.question("\nPilih menu (1-16): ");
@@ -106,7 +116,7 @@ async function main() {
   }
 }
 
-// === FUNCTIONS NODE 2 ===
+// === FUNCTIONS NODE 2 (RPC) ===
 async function getAllStudents() {
   try {
     const url = SERVICE_URLS.student();
@@ -151,7 +161,7 @@ async function createStudent(nim: string, nama: string, status: string) {
   }
 }
 
-// === FUNCTIONS NODE 3 ===
+// === FUNCTIONS NODE 3 (RPC) ===
 async function getAllCourses() {
   try {
     const url = SERVICE_URLS.course();
@@ -188,11 +198,12 @@ async function checkCourseQuota(id: string) {
   }
 }
 
-// === FUNCTIONS NODE 4 ===
+// === FUNCTIONS NODE 4 (ORKESTRATOR) ===
 async function submitKrs(nim: string, courseIds: number[]) {
   try {
     const url = SERVICE_URLS.krs();
     console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'submitKrs' params:`, { nim, courseIds });
+    console.log("  ↳ Node 4 akan memvalidasi via RPC ke Node 2 & 3, serta RMI ke Node 5");
     const result = await callJsonRpc(url, "submitKrs", { nim, courseIds });
     console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
@@ -233,48 +244,48 @@ async function getAllKrs() {
   }
 }
 
-// === FUNCTIONS NODE 5 ===
+// === FUNCTIONS NODE 5 (RMI - REMOTE METHOD INVOCATION) ===
 async function getScheduleByCourseId(courseId: string) {
   try {
-    const url = SERVICE_URLS.schedule();
-    console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'getScheduleByCourseId' params: { courseId: ${courseId} }`);
-    const result = await callJsonRpc(url, "getScheduleByCourseId", { courseId: Number(courseId) });
-    console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
+    const stub = getScheduleRmiStub();
+    console.log(`\n[RMI Proxy Invocation] -> ScheduleService.getScheduleByCourseId(${courseId})`);
+    const result = await stub.getScheduleByCourseId(Number(courseId));
+    console.log("[RMI Invocation Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
-    console.error("[JSON-RPC Error]:", err.message);
+    console.error("[RMI Error]:", err.message);
   }
 }
 
 async function getScheduleByDay(day: string) {
   try {
-    const url = SERVICE_URLS.schedule();
-    console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'getScheduleByDay' params: { day: "${day}" }`);
-    const result = await callJsonRpc(url, "getScheduleByDay", { day });
-    console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
+    const stub = getScheduleRmiStub();
+    console.log(`\n[RMI Proxy Invocation] -> ScheduleService.getScheduleByDay("${day}")`);
+    const result = await stub.getScheduleByDay(day);
+    console.log("[RMI Invocation Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
-    console.error("[JSON-RPC Error]:", err.message);
+    console.error("[RMI Error]:", err.message);
   }
 }
 
 async function getAllSchedules() {
   try {
-    const url = SERVICE_URLS.schedule();
-    console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'getAllSchedules'`);
-    const result = await callJsonRpc(url, "getAllSchedules", {});
-    console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
+    const stub = getScheduleRmiStub();
+    console.log(`\n[RMI Proxy Invocation] -> ScheduleService.getAllSchedules()`);
+    const result = await stub.getAllSchedules();
+    console.log("[RMI Invocation Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
-    console.error("[JSON-RPC Error]:", err.message);
+    console.error("[RMI Error]:", err.message);
   }
 }
 
 async function checkScheduleConflict(courseIds: number[]) {
   try {
-    const url = SERVICE_URLS.schedule();
-    console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'checkScheduleConflict' params:`, { courseIds });
-    const result = await callJsonRpc(url, "checkScheduleConflict", { courseIds });
-    console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
+    const stub = getScheduleRmiStub();
+    console.log(`\n[RMI Proxy Invocation] -> ScheduleService.checkScheduleConflict([${courseIds.join(", ")}])`);
+    const result = await stub.checkScheduleConflict(courseIds);
+    console.log("[RMI Invocation Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
-    console.error("[JSON-RPC Error]:", err.message);
+    console.error("[RMI Error]:", err.message);
   }
 }
 
