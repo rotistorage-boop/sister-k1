@@ -10,7 +10,11 @@ import {
   JsonRpcError,
   JSON_RPC_ERRORS,
 } from "../../../utils/jsonrpc.util.js";
-
+import {
+  createRmiProxy,
+  RmiError,
+} from "../../../utils/rmi.util.js";
+import type { IScheduleRemoteService } from "../../../node5-schedule/src/interfaces/schedule-remote.interface.js";
 import { SERVICE_URLS } from "../../../utils/service-url.util.js";
 
 // Helper function untuk melakukan Application-Level Aggregation (Enrichment via RPC to Node 3)
@@ -75,7 +79,7 @@ export async function submitKrsHandler(params: {
     if (err instanceof JsonRpcError) throw err;
     throw new JsonRpcError(
       JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
-      `Gagal menghubungi Node 2 (Student Server): ${err.message}`,
+      `Gagal menghubungi Node 2 (Student Server via RPC): ${err.message}`,
     );
   }
 
@@ -101,20 +105,23 @@ export async function submitKrsHandler(params: {
       if (err instanceof JsonRpcError) throw err;
       throw new JsonRpcError(
         JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
-        `Gagal menghubungi Node 3 (Course Server): ${err.message}`,
+        `Gagal menghubungi Node 3 (Course Server via RPC): ${err.message}`,
       );
     }
   }
 
-  // 3. RPC Synchronous: Cek Konflik Jadwal ke Node 5 (Schedule Server)
+  // 3. RMI (Remote Method Invocation): Cek Konflik Jadwal ke Remote Object Node 5 (Schedule Server)
   let scheduleResult: any = null;
   try {
-    scheduleResult = await callJsonRpc(
-      SERVICE_URLS.schedule(),
-      "checkScheduleConflict",
-      { courseIds },
+    // Membuat RMI Stub / Client Proxy untuk interface IScheduleRemoteService
+    const scheduleRemote = createRmiProxy<IScheduleRemoteService>(
+      SERVICE_URLS.scheduleRmi(),
+      "ScheduleService",
       { timeoutMs: 5000 },
     );
+
+    // Pemanggilan method langsung secara Object-Oriented melalui RMI Stub Proxy
+    scheduleResult = await scheduleRemote.checkScheduleConflict(courseIds);
 
     if (scheduleResult.hasConflict) {
       throw new JsonRpcError(
@@ -124,9 +131,15 @@ export async function submitKrsHandler(params: {
     }
   } catch (err: any) {
     if (err instanceof JsonRpcError) throw err;
+    if (err instanceof RmiError) {
+      throw new JsonRpcError(
+        JSON_RPC_ERRORS.BAD_REQUEST.code,
+        `RMI Error dari Node 5 (Schedule Service): ${err.message}`,
+      );
+    }
     throw new JsonRpcError(
       JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
-      `Gagal menghubungi Node 5 (Schedule Server): ${err.message}`,
+      `Gagal menghubungi Node 5 (Schedule Server via RMI): ${err.message}`,
     );
   }
 
