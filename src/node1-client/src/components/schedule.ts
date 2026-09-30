@@ -12,7 +12,7 @@ export function renderScheduleComponent(container: HTMLElement) {
   const pageTitle = document.getElementById("page-title")!;
   const pageDesc = document.getElementById("page-desc")!;
   pageTitle.textContent = "Jadwal Perkuliahan";
-  pageDesc.textContent = "Node 5 | Schedule Service (Port 3005) & Sinkronisasi Node 3";
+  pageDesc.textContent = "Node 5 | Schedule Service (RMI Protocol - Port 3005) & Sinkronisasi Node 3";
 
   container.innerHTML = `
     <div class="space-y-6 text-left">
