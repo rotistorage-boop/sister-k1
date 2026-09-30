@@ -4,6 +4,7 @@ import {
   getCourseByKodeHandler,
   getCourseByIdHandler,
   checkQuotaHandler,
+  createCourseHandler,
 } from "../controllers/course.controller.js";
 import { createJsonRpcRouter } from "../../../utils/jsonrpc.util.js";
 
@@ -14,6 +15,8 @@ const rpcHandler = createJsonRpcRouter({
   getCourseByKode: getCourseByKodeHandler,
   getCourseById: getCourseByIdHandler,
   checkQuota: checkQuotaHandler,
+  createCourse: createCourseHandler,
+  addCourse: createCourseHandler,
 });
 
 courseRoute.post("/", rpcHandler);
