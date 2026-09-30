@@ -3,6 +3,7 @@ import {
   getCourseById,
   getCourseByKode,
   checkCourseQuota,
+  createCourse,
   type Course,
 } from "../rpc/course";
 import { renderLucideIcons } from "../icons";
@@ -11,55 +12,107 @@ export function renderCourseComponent(container: HTMLElement) {
   const pageTitle = document.getElementById("page-title")!;
   const pageDesc = document.getElementById("page-desc")!;
   pageTitle.textContent = "Katalog Mata Kuliah";
-  pageDesc.textContent = "Node 3 | Course Service (Port 3003)";
+  pageDesc.textContent = "Node 3 | Course Service (JSON-RPC 2.0 - Port 3003)";
 
   container.innerHTML = `
     <div class="space-y-6 text-left">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Cari Mata Kuliah -->
-        <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left">
-          <div class="flex items-center gap-2.5 mb-4">
-            <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
-              <i data-lucide="search" class="w-4 h-4"></i>
+        <!-- Kolom Kiri: Cari & Cek Kuota -->
+        <div class="space-y-6">
+          <!-- Cari Mata Kuliah -->
+          <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left">
+            <div class="flex items-center gap-2.5 mb-4">
+              <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
+                <i data-lucide="search" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-zinc-900">Cari Mata Kuliah</h3>
+                <p class="text-xs font-medium text-zinc-500">Pencarian berdasarkan Kode (IF101) atau ID</p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-sm font-bold text-zinc-900">Cari Mata Kuliah</h3>
-              <p class="text-xs font-medium text-zinc-500">Pencarian berdasarkan Kode (IF101) atau ID</p>
-            </div>
+
+            <form id="form-search-course" class="flex gap-2">
+              <input type="text" id="input-search-course" placeholder="Masukkan Kode atau ID Matkul..." required
+                class="flex-1 bg-white border border-zinc-300 rounded-lg px-3.5 py-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+              <button type="submit" class="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
+                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                <span>Cari</span>
+              </button>
+            </form>
+            <div id="course-search-result" class="mt-4"></div>
           </div>
 
-          <form id="form-search-course" class="flex gap-2">
-            <input type="text" id="input-search-course" placeholder="Masukkan Kode atau ID Matkul..." required
-              class="flex-1 bg-white border border-zinc-300 rounded-lg px-3.5 py-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
-            <button type="submit" class="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
-              <i data-lucide="search" class="w-3.5 h-3.5"></i>
-              <span>Cari</span>
-            </button>
-          </form>
-          <div id="course-search-result" class="mt-4"></div>
+          <!-- Cek Kuota -->
+          <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left">
+            <div class="flex items-center gap-2.5 mb-4">
+              <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
+                <i data-lucide="pie-chart" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-zinc-900">Cek Kuota Kelas</h3>
+                <p class="text-xs font-medium text-zinc-500">checkCourseQuota ke Node 3</p>
+              </div>
+            </div>
+
+            <form id="form-quota-course" class="flex gap-2">
+              <input type="number" id="input-quota-id" placeholder="Masukkan ID Mata Kuliah (contoh: 1)" required min="1"
+                class="flex-1 bg-white border border-zinc-300 rounded-lg px-3.5 py-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+              <button type="submit" class="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                <span>Cek Kuota</span>
+              </button>
+            </form>
+            <div id="course-quota-result" class="mt-4"></div>
+          </div>
         </div>
 
-        <!-- Cek Kuota -->
-        <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left">
-          <div class="flex items-center gap-2.5 mb-4">
-            <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
-              <i data-lucide="pie-chart" class="w-4 h-4"></i>
+        <!-- Kolom Kanan: Tambah Mata Kuliah Baru -->
+        <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2.5 mb-4">
+              <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-zinc-900">Tambah Mata Kuliah Baru</h3>
+                <p class="text-xs font-medium text-zinc-500">createCourse ke Node 3 (JSON-RPC 2.0)</p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-sm font-bold text-zinc-900">Cek Kuota Kelas</h3>
-              <p class="text-xs font-medium text-zinc-500">checkCourseQuota ke Node 3</p>
-            </div>
-          </div>
 
-          <form id="form-quota-course" class="flex gap-2">
-            <input type="number" id="input-quota-id" placeholder="Masukkan ID Mata Kuliah (contoh: 1)" required min="1"
-              class="flex-1 bg-white border border-zinc-300 rounded-lg px-3.5 py-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
-            <button type="submit" class="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-1.5">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
-              <span>Cek Kuota</span>
-            </button>
-          </form>
-          <div id="course-quota-result" class="mt-4"></div>
+            <form id="form-create-course" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="input-create-kode" class="block text-xs font-bold text-zinc-700 mb-1">Kode Matkul</label>
+                  <input type="text" id="input-create-kode" placeholder="Contoh: IF205" required
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 uppercase outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+                </div>
+                <div>
+                  <label for="input-create-sks" class="block text-xs font-bold text-zinc-700 mb-1">Bobot SKS</label>
+                  <input type="number" id="input-create-sks" placeholder="Contoh: 3" required min="1" max="6" value="3"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="sm:col-span-2">
+                  <label for="input-create-nama" class="block text-xs font-bold text-zinc-700 mb-1">Nama Mata Kuliah</label>
+                  <input type="text" id="input-create-nama" placeholder="Contoh: Cloud Computing" required
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="input-create-kuota" class="block text-xs font-bold text-zinc-700 mb-1">Kapasitas Kuota Kelas</label>
+                  <input type="number" id="input-create-kuota" placeholder="Contoh: 30" required min="1" value="30"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+                </div>
+              </div>
+
+              <button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 pt-2.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Simpan ke Database Node 3</span>
+              </button>
+            </form>
+          </div>
+          <div id="course-create-result" class="mt-4"></div>
         </div>
       </div>
 
@@ -94,6 +147,13 @@ export function renderCourseComponent(container: HTMLElement) {
   const quotaForm = container.querySelector<HTMLFormElement>("#form-quota-course")!;
   const quotaInput = container.querySelector<HTMLInputElement>("#input-quota-id")!;
   const quotaResult = container.querySelector<HTMLElement>("#course-quota-result")!;
+
+  const createForm = container.querySelector<HTMLFormElement>("#form-create-course")!;
+  const createKode = container.querySelector<HTMLInputElement>("#input-create-kode")!;
+  const createNama = container.querySelector<HTMLInputElement>("#input-create-nama")!;
+  const createSks = container.querySelector<HTMLInputElement>("#input-create-sks")!;
+  const createKuota = container.querySelector<HTMLInputElement>("#input-create-kuota")!;
+  const createResult = container.querySelector<HTMLElement>("#course-create-result")!;
 
   const refreshBtn = container.querySelector<HTMLButtonElement>("#btn-refresh-courses")!;
   const tableEl = container.querySelector<HTMLElement>("#courses-table-container")!;
@@ -240,6 +300,45 @@ export function renderCourseComponent(container: HTMLElement) {
     }
   };
 
+  createForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const kode = createKode.value.trim().toUpperCase();
+    const nama = createNama.value.trim();
+    const sks = Number(createSks.value.trim());
+    const kuota = Number(createKuota.value.trim());
+
+    if (!kode || !nama) return;
+    createResult.innerHTML = `
+      <div class="flex items-center gap-2 text-xs font-medium text-zinc-500 py-2">
+        <div class="spinner"></div> Menyimpan ke Node 3...
+      </div>
+    `;
+    try {
+      const created = await createCourse(kode, nama, sks, kuota);
+      createResult.innerHTML = `
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs text-emerald-900 font-medium flex items-center gap-2">
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+          <span>Mata Kuliah <strong>${created.nama}</strong> (${created.kode}) [${created.sks} SKS, Kuota: ${created.kuota}] berhasil ditambahkan.</span>
+        </div>
+      `;
+      createForm.reset();
+      createSks.value = "3";
+      createKuota.value = "30";
+      renderLucideIcons(createResult);
+      loadAll();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal menambahkan mata kuliah";
+      createResult.innerHTML = `
+        <div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-xs font-semibold text-rose-800 flex items-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600"></i>
+          <span>${msg}</span>
+        </div>
+      `;
+      renderLucideIcons(createResult);
+    }
+  };
+
   refreshBtn.onclick = loadAll;
   loadAll();
 }
+
