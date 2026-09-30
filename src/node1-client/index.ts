@@ -32,19 +32,20 @@ async function main() {
     console.log("5. Lihat Semua Mata Kuliah");
     console.log("6. Cari Mata Kuliah by Kode/ID");
     console.log("7. Cek Kuota Mata Kuliah by ID");
+    console.log("8. Tambah Mata Kuliah Baru");
     console.log("\n--- NODE 4: KRS SERVER (ORKESTRATOR RPC + RMI) ---");
-    console.log("8. Submit KRS Mahasiswa (RPC Node 2, 3 + RMI Node 5)");
-    console.log("9. Cari KRS Mahasiswa by NIM");
-    console.log("10. Lihat Detail KRS by ID");
-    console.log("11. Lihat Semua KRS");
+    console.log("9. Submit KRS Mahasiswa (RPC Node 2, 3 + RMI Node 5)");
+    console.log("10. Cari KRS Mahasiswa by NIM");
+    console.log("11. Lihat Detail KRS by ID");
+    console.log("12. Lihat Semua KRS");
     console.log("\n--- NODE 5: SCHEDULE SERVER (RMI - REMOTE OBJECT) ---");
-    console.log("12. Lihat Jadwal by Course ID (via RMI Proxy)");
-    console.log("13. Lihat Jadwal by Hari (via RMI Proxy)");
-    console.log("14. Lihat Semua Jadwal (via RMI Proxy)");
-    console.log("15. Cek Konflik Jadwal (via RMI Proxy)");
-    console.log("16. Keluar");
+    console.log("13. Lihat Jadwal by Course ID (via RMI Proxy)");
+    console.log("14. Lihat Jadwal by Hari (via RMI Proxy)");
+    console.log("15. Lihat Semua Jadwal (via RMI Proxy)");
+    console.log("16. Cek Konflik Jadwal (via RMI Proxy)");
+    console.log("17. Keluar");
 
-    const choice = await rl.question("\nPilih menu (1-16): ");
+    const choice = await rl.question("\nPilih menu (1-17): ");
     const trimmedChoice = choice.trim();
 
     if (trimmedChoice === "1") {
@@ -72,6 +73,17 @@ async function main() {
       const id = await rl.question("Masukkan ID Matkul: ");
       await checkCourseQuota(id.trim());
     } else if (trimmedChoice === "8") {
+      const kode = await rl.question("Masukkan Kode Matkul (contoh: IF205): ");
+      const nama = await rl.question("Masukkan Nama Mata Kuliah: ");
+      const sks = await rl.question("Masukkan Bobot SKS (default: 3): ");
+      const kuota = await rl.question("Masukkan Kapasitas Kuota (default: 30): ");
+      await createCourse(
+        kode.trim(),
+        nama.trim(),
+        Number(sks.trim()) || 3,
+        Number(kuota.trim()) || 30,
+      );
+    } else if (trimmedChoice === "9") {
       const nim = await rl.question("Masukkan NIM Mahasiswa: ");
       const courseIdsInput = await rl.question(
         "Masukkan ID Mata Kuliah (pisahkan koma, contoh: 1,2): ",
@@ -81,23 +93,23 @@ async function main() {
         .map((s) => Number(s.trim()))
         .filter((n) => !isNaN(n));
       await submitKrs(nim.trim(), courseIds);
-    } else if (trimmedChoice === "9") {
+    } else if (trimmedChoice === "10") {
       const nim = await rl.question("Masukkan NIM untuk cari KRS: ");
       await getKrsByNim(nim.trim());
-    } else if (trimmedChoice === "10") {
+    } else if (trimmedChoice === "11") {
       const id = await rl.question("Masukkan ID KRS: ");
       await getKrsById(id.trim());
-    } else if (trimmedChoice === "11") {
-      await getAllKrs();
     } else if (trimmedChoice === "12") {
+      await getAllKrs();
+    } else if (trimmedChoice === "13") {
       const courseId = await rl.question("Masukkan Course ID: ");
       await getScheduleByCourseId(courseId.trim());
-    } else if (trimmedChoice === "13") {
+    } else if (trimmedChoice === "14") {
       const day = await rl.question("Masukkan Hari (Senin/Selasa/Rabu/Kamis/Jumat): ");
       await getScheduleByDay(day.trim());
-    } else if (trimmedChoice === "14") {
-      await getAllSchedules();
     } else if (trimmedChoice === "15") {
+      await getAllSchedules();
+    } else if (trimmedChoice === "16") {
       const courseIdsInput = await rl.question(
         "Masukkan ID Mata Kuliah (pisahkan koma, contoh: 1,2): ",
       );
@@ -106,12 +118,12 @@ async function main() {
         .map((s) => Number(s.trim()))
         .filter((n) => !isNaN(n));
       await checkScheduleConflict(courseIds);
-    } else if (trimmedChoice === "16") {
+    } else if (trimmedChoice === "17") {
       console.log("Keluar dari client. Sampai jumpa!");
       rl.close();
       process.exit(0);
     } else {
-      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 16.");
+      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 17.");
     }
   }
 }
@@ -192,6 +204,20 @@ async function checkCourseQuota(id: string) {
     const url = SERVICE_URLS.course();
     console.log(`\n[JSON-RPC Call] -> POST ${url} method: 'checkQuota' params: { id: ${id} }`);
     const result = await callJsonRpc(url, "checkQuota", { id: Number(id) });
+    console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
+  } catch (err: any) {
+    console.error("[JSON-RPC Error]:", err.message);
+  }
+}
+
+async function createCourse(kode: string, nama: string, sks: number, kuota: number) {
+  try {
+    const url = SERVICE_URLS.course();
+    console.log(
+      `\n[JSON-RPC Call] -> POST ${url} method: 'createCourse' params:`,
+      { kode, nama, sks, kuota },
+    );
+    const result = await callJsonRpc(url, "createCourse", { kode, nama, sks, kuota });
     console.log("[JSON-RPC Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
     console.error("[JSON-RPC Error]:", err.message);
