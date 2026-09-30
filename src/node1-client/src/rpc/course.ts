@@ -31,3 +31,18 @@ export async function getCourseByKode(kode: string): Promise<Course> {
 export async function checkCourseQuota(id: number): Promise<CourseQuotaResult> {
   return callRpc<CourseQuotaResult>(COURSE_RPC_URL, "checkQuota", { id });
 }
+
+export async function createCourse(
+  kode: string,
+  nama: string,
+  sks: number,
+  kuota: number,
+): Promise<Course> {
+  return callRpc<Course>(COURSE_RPC_URL, "createCourse", {
+    kode,
+    nama,
+    sks,
+    kuota,
+  });
+}
+
