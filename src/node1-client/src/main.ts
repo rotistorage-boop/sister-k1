@@ -22,10 +22,10 @@ function renderNodeStatusList(
   },
 ) {
   const nodes = [
-    { id: 2, name: "Node 2 | Student Service", port: "3002", state: statuses.node2 },
-    { id: 3, name: "Node 3 | Course Service", port: "3003", state: statuses.node3 },
-    { id: 4, name: "Node 4 | KRS Orchestrator", port: "3004", state: statuses.node4 },
-    { id: 5, name: "Node 5 | Schedule Service", port: "3005", state: statuses.node5 },
+    { id: 2, name: "Node 2 | Student Service (RPC)", port: "3002", state: statuses.node2 },
+    { id: 3, name: "Node 3 | Course Service (RPC)", port: "3003", state: statuses.node3 },
+    { id: 4, name: "Node 4 | KRS Orchestrator (RPC)", port: "3004", state: statuses.node4 },
+    { id: 5, name: "Node 5 | Schedule Service (RMI)", port: "3005", state: statuses.node5 },
   ];
 
   container.innerHTML = nodes
