@@ -22,7 +22,7 @@ rmiRegistry.bind("ScheduleService", scheduleServant);
 const rmiHandler = createRmiRouter(rmiRegistry);
 scheduleRoute.post("/rmi", rmiHandler);
 
-// === 3. ENDPOINT LEGACY JSON-RPC (Untuk Backward Compatibility jika diperlukan) ===
+// === 3. ENDPOINT JSON-RPC ===
 const rpcHandler = createJsonRpcRouter({
   getScheduleByCourseId: getScheduleByCourseIdHandler,
   getAllSchedules: getAllSchedulesHandler,
@@ -31,17 +31,6 @@ const rpcHandler = createJsonRpcRouter({
 });
 
 scheduleRoute.post("/rpc", rpcHandler);
-// Root handler: dukung RMI jika payload rmi ada, selain itu fallback ke RPC
-scheduleRoute.post("/", async (c) => {
-  const clonedReq = c.req.raw.clone();
-  try {
-    const json = await clonedReq.json();
-    if (json && json.rmi === "1.0") {
-      return rmiHandler(c);
-    }
-  } catch {}
-  return rpcHandler(c);
-});
 
 // Endpoint info registry
 scheduleRoute.get("/rmi/services", (c) => {

@@ -19,7 +19,6 @@ const rpcHandler = createJsonRpcRouter({
   addCourse: createCourseHandler,
 });
 
-courseRoute.post("/", rpcHandler);
 courseRoute.post("/rpc", rpcHandler);
 
 export default courseRoute;

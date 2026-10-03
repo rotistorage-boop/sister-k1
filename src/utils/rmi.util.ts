@@ -127,6 +127,35 @@ export class RmiRegistry {
   }
 }
 
+function logRmiRequest(c: Context, body: any) {
+  const now = new Date().toISOString();
+  const headers: Record<string, string> = {};
+  c.req.raw.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+
+  console.log("\n========== [RMI] INCOMING REQUEST ==========");
+  console.log(`Timestamp   : ${now}`);
+  console.log(`HTTP Method : ${c.req.method}`);
+  console.log(`URL         : ${c.req.url}`);
+  console.log(`RMI Service : ${body.service}`);
+  console.log(`RMI Method  : ${body.method}`);
+  console.log(`RMI ID      : ${body.id}`);
+  console.log(`RMI Args    : ${JSON.stringify(body.args)}`);
+  console.log("--- Headers ---");
+  console.log(JSON.stringify(headers, null, 2));
+  console.log("--- Request Body ---");
+  console.log(JSON.stringify(body, null, 2));
+}
+
+function logRmiResponse(body: any, statusCode: number, durationMs: number, isError: boolean) {
+  console.log(`--- Response (${isError ? "ERROR" : "SUCCESS"}) ---`);
+  console.log(`Status Code : ${statusCode}`);
+  console.log(`Duration    : ${durationMs}ms`);
+  console.log(JSON.stringify(body, null, 2));
+  console.log("========== [RMI] END ==========\n");
+}
+
 /**
  * RMI Skeleton / Server Dispatcher Router
  * Menerima request HTTP RMI, melakukan unmarshalling parameter,
@@ -134,60 +163,59 @@ export class RmiRegistry {
  */
 export function createRmiRouter(registry: RmiRegistry) {
   return async (c: Context) => {
+    const startTime = Date.now();
     let body: any;
     try {
       body = await c.req.json();
     } catch {
-      return c.json(
-        createRmiError(
-          null,
-          RMI_ERRORS.PARSE_ERROR.code,
-          RMI_ERRORS.PARSE_ERROR.message,
-        ),
-        400,
+      const errResp = createRmiError(
+        null,
+        RMI_ERRORS.PARSE_ERROR.code,
+        RMI_ERRORS.PARSE_ERROR.message,
       );
+      logRmiResponse(errResp, 400, Date.now() - startTime, true);
+      return c.json(errResp, 400);
     }
 
     if (!body || body.rmi !== "1.0" || typeof body.service !== "string" || typeof body.method !== "string") {
-      return c.json(
-        createRmiError(
-          body?.id ?? null,
-          RMI_ERRORS.INVALID_REQUEST.code,
-          "Invalid RMI Request: payload must include rmi: '1.0', service name, and method name",
-        ),
-        400,
+      const errResp = createRmiError(
+        body?.id ?? null,
+        RMI_ERRORS.INVALID_REQUEST.code,
+        "Invalid RMI Request: payload must include rmi: '1.0', service name, and method name",
       );
+      logRmiResponse(errResp, 400, Date.now() - startTime, true);
+      return c.json(errResp, 400);
     }
 
     const { service, method, args = [], id } = body;
     const isNotification = id === undefined || id === null;
 
+    logRmiRequest(c, body);
+
     // 1. Lookup remote servant dari Registry
     const servant = registry.lookup(service) as any;
     if (!servant) {
       if (isNotification) return c.body(null, 204);
-      return c.json(
-        createRmiError(
-          id,
-          RMI_ERRORS.SERVICE_NOT_FOUND.code,
-          `Remote service '${service}' is not registered in RMI Registry. Available services: ${registry.list().join(", ") || "none"}`,
-        ),
-        404,
+      const errResp = createRmiError(
+        id,
+        RMI_ERRORS.SERVICE_NOT_FOUND.code,
+        `Remote service '${service}' is not registered in RMI Registry. Available services: ${registry.list().join(", ") || "none"}`,
       );
+      logRmiResponse(errResp, 404, Date.now() - startTime, true);
+      return c.json(errResp, 404);
     }
 
     // 2. Lookup method pada servant instance
     const targetMethod = servant[method];
     if (typeof targetMethod !== "function") {
       if (isNotification) return c.body(null, 204);
-      return c.json(
-        createRmiError(
-          id,
-          RMI_ERRORS.METHOD_NOT_FOUND.code,
-          `Method '${method}' does not exist on remote service '${service}'`,
-        ),
-        404,
+      const errResp = createRmiError(
+        id,
+        RMI_ERRORS.METHOD_NOT_FOUND.code,
+        `Method '${method}' does not exist on remote service '${service}'`,
       );
+      logRmiResponse(errResp, 404, Date.now() - startTime, true);
+      return c.json(errResp, 404);
     }
 
     // 3. Unmarshalling arguments & Remote Method Invocation
@@ -197,7 +225,9 @@ export function createRmiRouter(registry: RmiRegistry) {
       const result = await targetMethod.apply(servant, sanitizedArgs);
 
       if (isNotification) return c.body(null, 204);
-      return c.json(createRmiSuccess(id, result));
+      const successResp = createRmiSuccess(id, result);
+      logRmiResponse(successResp, 200, Date.now() - startTime, false);
+      return c.json(successResp);
     } catch (err: any) {
       if (isNotification) return c.body(null, 204);
       const code = err?.code || RMI_ERRORS.INVOCATION_ERROR.code;
@@ -208,10 +238,9 @@ export function createRmiRouter(registry: RmiRegistry) {
           : code === RMI_ERRORS.BAD_REQUEST.code
             ? 400
             : 500;
-      return c.json(
-        createRmiError(id, code, message, err?.data),
-        statusCode as any,
-      );
+      const errResp = createRmiError(id, code, message, err?.data);
+      logRmiResponse(errResp, statusCode, Date.now() - startTime, true);
+      return c.json(errResp, statusCode as any);
     }
   };
 }

@@ -17,7 +17,6 @@ const rpcHandler = createJsonRpcRouter({
   getKrsByNim: getKrsByNimHandler,
 });
 
-krsRoute.post("/", rpcHandler);
 krsRoute.post("/rpc", rpcHandler);
 
 export default krsRoute;

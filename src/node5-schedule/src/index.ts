@@ -16,10 +16,10 @@ const port = Number(process.env.PORT_NODE5) || 3005;
 const hostname = process.env.HOST || "localhost";
 
 console.log(
-  `🚀 Node 5 (Schedule RMI Server) is running on http://${hostname}:${port}`,
+  `Node 5 (Schedule RMI Server) is running on http://${hostname}:${port}`,
 );
 console.log(
-  `📦 RMI Registry active at http://${hostname}:${port}/rmi [Registered Objects: ${rmiRegistry.list().join(", ")}]`,
+  `RMI Registry active at http://${hostname}:${port}/rmi [Registered Objects: ${rmiRegistry.list().join(", ")}]`,
 );
 
 serve({

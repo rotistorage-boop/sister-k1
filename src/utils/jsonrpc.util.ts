@@ -83,49 +83,76 @@ export type JsonRpcHandler = (
   c: Context,
 ) => Promise<any>;
 
+function logRpcRequest(c: Context, body: any) {
+  const now = new Date().toISOString();
+  const headers: Record<string, string> = {};
+  c.req.raw.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+
+  console.log("\n========== [RPC] INCOMING REQUEST ==========");
+  console.log(`Timestamp   : ${now}`);
+  console.log(`HTTP Method : ${c.req.method}`);
+  console.log(`URL         : ${c.req.url}`);
+  console.log(`RPC Method  : ${body.method}`);
+  console.log(`RPC ID      : ${body.id}`);
+  console.log("--- Headers ---");
+  console.log(JSON.stringify(headers, null, 2));
+  console.log("--- Request Body ---");
+  console.log(JSON.stringify(body, null, 2));
+}
+
+function logRpcResponse(body: any, statusCode: number, durationMs: number, isError: boolean) {
+  console.log(`--- Response (${isError ? "ERROR" : "SUCCESS"}) ---`);
+  console.log(`Status Code : ${statusCode}`);
+  console.log(`Duration    : ${durationMs}ms`);
+  console.log(JSON.stringify(body, null, 2));
+  console.log("========== [RPC] END ==========\n");
+}
+
 export function createJsonRpcRouter(methods: Record<string, JsonRpcHandler>) {
   return async (c: Context) => {
+    const startTime = Date.now();
     let body: any;
     try {
       body = await c.req.json();
     } catch {
-      return c.json(
-        createJsonRpcError(
-          null,
-          JSON_RPC_ERRORS.PARSE_ERROR.code,
-          JSON_RPC_ERRORS.PARSE_ERROR.message,
-        ),
-        400,
+      const errResp = createJsonRpcError(
+        null,
+        JSON_RPC_ERRORS.PARSE_ERROR.code,
+        JSON_RPC_ERRORS.PARSE_ERROR.message,
       );
+      logRpcResponse(errResp, 400, Date.now() - startTime, true);
+      return c.json(errResp, 400);
     }
 
     if (!body || body.jsonrpc !== "2.0" || typeof body.method !== "string") {
-      return c.json(
-        createJsonRpcError(
-          body?.id ?? null,
-          JSON_RPC_ERRORS.INVALID_REQUEST.code,
-          "Invalid JSON-RPC 2.0 Request: jsonrpc must be '2.0' and method must be specified",
-        ),
-        400,
+      const errResp = createJsonRpcError(
+        body?.id ?? null,
+        JSON_RPC_ERRORS.INVALID_REQUEST.code,
+        "Invalid JSON-RPC 2.0 Request: jsonrpc must be '2.0' and method must be specified",
       );
+      logRpcResponse(errResp, 400, Date.now() - startTime, true);
+      return c.json(errResp, 400);
     }
 
     const { method, params, id } = body;
     const isNotification = id === undefined || id === null;
+
+    logRpcRequest(c, body);
 
     const handler = methods[method];
     if (!handler) {
       if (isNotification) {
         return c.body(null, 204);
       }
-      return c.json(
-        createJsonRpcError(
-          id,
-          JSON_RPC_ERRORS.METHOD_NOT_FOUND.code,
-          `Method '${method}' not found`,
-        ),
-        404,
+      const errResp = createJsonRpcError(
+        id,
+        JSON_RPC_ERRORS.METHOD_NOT_FOUND.code,
+        `Method '${method}' not found`,
       );
+      logRpcResponse(errResp, 404, Date.now() - startTime, true);
+      return c.json(errResp, 404);
     }
 
     try {
@@ -133,7 +160,9 @@ export function createJsonRpcRouter(methods: Record<string, JsonRpcHandler>) {
       if (isNotification) {
         return c.body(null, 204);
       }
-      return c.json(createJsonRpcSuccess(id, result));
+      const successResp = createJsonRpcSuccess(id, result);
+      logRpcResponse(successResp, 200, Date.now() - startTime, false);
+      return c.json(successResp);
     } catch (err: any) {
       if (isNotification) {
         return c.body(null, 204);
@@ -146,10 +175,9 @@ export function createJsonRpcRouter(methods: Record<string, JsonRpcHandler>) {
           : code === JSON_RPC_ERRORS.BAD_REQUEST.code
             ? 400
             : 500;
-      return c.json(
-        createJsonRpcError(id, code, message, err?.data),
-        statusCode as any,
-      );
+      const errResp = createJsonRpcError(id, code, message, err?.data);
+      logRpcResponse(errResp, statusCode, Date.now() - startTime, true);
+      return c.json(errResp, statusCode as any);
     }
   };
 }

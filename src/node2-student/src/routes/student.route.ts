@@ -17,7 +17,6 @@ const rpcHandler = createJsonRpcRouter({
   getAllStudents: getAllStudentsHandler,
 });
 
-studentRoute.post("/", rpcHandler);
 studentRoute.post("/rpc", rpcHandler);
 
 export default studentRoute;
