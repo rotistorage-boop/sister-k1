@@ -89,17 +89,29 @@ describe("Sinkronisasi #2: Physical Clock Synchronization (Cristian's Algorithm)
   // ---------------------------------------------------------------------------
   describe("1. Time Authority — getTime endpoint (Node 4)", () => {
     it("getTime - Harus mengembalikan serverTime dalam epoch ms yang valid", async () => {
-      const before = Date.now();
+      // CATATAN: test ini TIDAK boleh mengasumsikan jam client & server sinkron.
+      // Antar-device, skew jam fisik bisa > 1 detik (itulah gunanya Cristian).
+      // Yang diuji: validitas + konsistensi internal server, bukan kesamaan jam.
       const result: any = await callJsonRpc(KRS_URL, "getTime", {});
-      const after = Date.now();
 
       expect(result).toBeTruthy();
       expect(typeof result.serverTime).toBe("number");
-      expect(result.serverTime).toBeGreaterThanOrEqual(before - 1000); // toleransi 1 detik
-      expect(result.serverTime).toBeLessThanOrEqual(after + 1000);
+      expect(result.serverTime).toBeGreaterThan(0);
       expect(typeof result.iso).toBe("string");
 
+      // Konsistensi internal: iso harus mempresentasikan serverTime yang sama
+      expect(Date.parse(result.iso)).toBe(result.serverTime);
+
+      // Monotonik: pemanggilan kedua tidak boleh mundur
+      const second: any = await callJsonRpc(KRS_URL, "getTime", {});
+      expect(second.serverTime).toBeGreaterThanOrEqual(result.serverTime);
+
+      // Sanity antar-device dengan toleransi longgar (1 jam): hanya untuk
+      // menangkap error satuan (detik-vs-ms, nilai 0/negatif), bukan NTP-sync.
+      expect(Math.abs(second.serverTime - Date.now())).toBeLessThan(3_600_000);
+
       console.log(`  [getTime] serverTime: ${result.serverTime} (${result.iso})`);
+      console.log(`  [getTime] skew vs jam client: ${result.serverTime - Date.now()}ms`);
     });
   });
 
@@ -125,14 +137,15 @@ describe("Sinkronisasi #2: Physical Clock Synchronization (Cristian's Algorithm)
       console.log(`  [Probe] T1=${sample.t1} T4=${sample.t4} RTT=${sample.rtt}ms offset=${sample.offset.toFixed(1)}ms`);
     });
 
-    it("cristianProbe - Offset harus kecil jika client dan server di mesin yang sama", async () => {
-      const sample = await cristianProbe(getTimeFromNode4);
+    it("cristianProbe - Offset stabil antar probe (toleran skew antar-device)", async () => {
+      // Skew jam fisik boleh BESAR antar-device; yang diuji Cristian bukan
+      // kecilnya offset, melainkan STABILNYA estimasi antar pengukuran.
+      const s1 = await cristianProbe(getTimeFromNode4);
+      const s2 = await cristianProbe(getTimeFromNode4);
 
-      // Jika berjalan di mesin yang sama, offset biasanya < 100ms
-      // Toleransi agak besar untuk CI / cross-network
-      expect(Math.abs(sample.offset)).toBeLessThan(5000);
+      expect(Math.abs(s1.offset - s2.offset)).toBeLessThan(2000);
 
-      console.log(`  [Probe] offset=${sample.offset.toFixed(1)}ms (harusnya kecil jika se-mesin)`);
+      console.log(`  [Probe] offset=${s1.offset.toFixed(1)}ms (besar = wajar jika beda device; itulah gunanya Cristian)`);
     });
   });
 
@@ -153,13 +166,17 @@ describe("Sinkronisasi #2: Physical Clock Synchronization (Cristian's Algorithm)
       expect(result.rtt).toBe(result.best.rtt);
       expect(result.offset).toBe(result.best.offset);
 
-      // estimatedServerNow = Date.now() + offset → harus mendekati sekarang
-      const now = Date.now();
-      expect(Math.abs(result.estimatedServerNow - now)).toBeLessThan(10000);
+      // estimatedServerNow harus MELACAK jam server (bukan jam client!):
+      // bandingkan dengan pembacaan server yang baru. Berlaku berapa pun
+      // skew antar-device karena kedua sisi dalam domain jam server.
+      const tEnd = Date.now();
+      const fresh = await getTimeFromNode4();
+      const elapsed = Date.now() - tEnd;
+      expect(Math.abs(fresh.serverTime - (result.estimatedServerNow + elapsed))).toBeLessThan(10000);
       expect(result.adjustedNow).toBe(result.estimatedServerNow);
 
       console.log(`  [Sync] ${N} sampel, RTT terbaik: ${result.rtt}ms, offset: ${result.offset.toFixed(1)}ms`);
-      console.log(`  [Sync] Jam lokal: ${new Date(now).toISOString()}`);
+      console.log(`  [Sync] Jam lokal: ${new Date().toISOString()}`);
       console.log(`  [Sync] Jam tersinkron: ${new Date(result.adjustedNow).toISOString()}`);
     });
 
