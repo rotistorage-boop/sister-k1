@@ -47,6 +47,30 @@ export async function getKrsPeriod(): Promise<KrsPeriodResponse> {
   return callRpc<KrsPeriodResponse>(KRS_RPC_URL, "getKrsPeriod");
 }
 
+export interface SetKrsPeriodPayload {
+  openAt?: number | null;
+  closeAt?: number | null;
+  note?: string;
+}
+
+export async function setKrsPeriod(payload: SetKrsPeriodPayload): Promise<KrsPeriodResponse> {
+  return callRpc<KrsPeriodResponse>(KRS_RPC_URL, "setKrsPeriod", {
+    openAt: payload.openAt ?? null,
+    closeAt: payload.closeAt ?? null,
+    ...(payload.note !== undefined ? { note: payload.note } : {}),
+  });
+}
+
+/** Pintasan: buka periode sekarang (openAt = sekarang, tanpa batas tutup). */
+export async function openKrsPeriodNow(note = "dibuka via Node 1"): Promise<KrsPeriodResponse> {
+  return setKrsPeriod({ openAt: Date.now(), closeAt: null, note });
+}
+
+/** Pintasan: tutup periode sekarang (closeAt = sekarang). */
+export async function closeKrsPeriodNow(note = "ditutup via Node 1"): Promise<KrsPeriodResponse> {
+  return setKrsPeriod({ openAt: null, closeAt: Date.now(), note });
+}
+
 /**
  * Cristian's Algorithm di sisi client (Node 1 -> Node 4 time authority).
  * T1 dicatat sebelum kirim, T4 sesudah terima; offset = (T_server + RTT/2) - T4.
