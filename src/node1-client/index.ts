@@ -43,9 +43,13 @@ async function main() {
     console.log("14. Lihat Jadwal by Hari (via RMI Proxy)");
     console.log("15. Lihat Semua Jadwal (via RMI Proxy)");
     console.log("16. Cek Konflik Jadwal (via RMI Proxy)");
-    console.log("17. Keluar");
+    console.log("\n--- SINKRONISASI: MUTEX & JAM (FITUR BARU) ---");
+    console.log("17. Simulasi Rebutan Kuota (lock terpusat Node 3 + token Node 4)");
+    console.log("18. Sinkronisasi Jam Cristian (Node 1 -> Node 4 getTime)");
+    console.log("19. Lihat Periode KRS (deadline Node 4)");
+    console.log("20. Keluar");
 
-    const choice = await rl.question("\nPilih menu (1-17): ");
+    const choice = await rl.question("\nPilih menu (1-20): ");
     const trimmedChoice = choice.trim();
 
     if (trimmedChoice === "1") {
@@ -119,11 +123,19 @@ async function main() {
         .filter((n) => !isNaN(n));
       await checkScheduleConflict(courseIds);
     } else if (trimmedChoice === "17") {
+      const id = await rl.question("Masukkan ID Matkul untuk simulasi (default: 1): ");
+      const n = await rl.question("Jumlah request bersamaan (default: 5): ");
+      await simulateQuotaRace(id.trim() || "1", Number(n.trim()) || 5);
+    } else if (trimmedChoice === "18") {
+      await cristianSyncCli(4);
+    } else if (trimmedChoice === "19") {
+      await getKrsPeriodCli();
+    } else if (trimmedChoice === "20") {
       console.log("Keluar dari client. Sampai jumpa!");
       rl.close();
       process.exit(0);
     } else {
-      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 17.");
+      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 20.");
     }
   }
 }
@@ -312,6 +324,77 @@ async function checkScheduleConflict(courseIds: number[]) {
     console.log("[RMI Invocation Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
     console.error("[RMI Error]:", err.message);
+  }
+}
+
+// === FITUR SINKRONISASI: MUTEX + CRISTIAN ===
+
+/** Simulasi rebutan kuota: N submitKrs concorrent untuk matkul yang sama. */
+async function simulateQuotaRace(courseId: string, concurrent: number) {
+  try {
+    const courseUrl = SERVICE_URLS.course();
+    const krsUrl = SERVICE_URLS.krs();
+    console.log(`\n[SIMULASI] Set kuota matkul ${courseId} = 1, lalu ${concurrent}x submitKrs bersamaan...`);
+    await callJsonRpc(courseUrl, "setQuota", { id: Number(courseId), kuota: 1 });
+    const before = await callJsonRpc(courseUrl, "checkQuota", { id: Number(courseId) });
+    console.log("[Sebelum] kuota:", JSON.stringify(before));
+
+    const results = await Promise.allSettled(
+      Array.from({ length: concurrent }, (_, i) =>
+        callJsonRpc(krsUrl, "submitKrs", {
+          nim: `RACE${Date.now().toString().slice(-6)}${i}`,
+          courseIds: [Number(courseId)],
+        }).catch(async (e: any) => {
+          // NIM fiktif ditolak Node 2 -> pakai NIM seed agar lolos validasi mahasiswa
+          if (String(e.message).includes("Node 2")) {
+            return callJsonRpc(krsUrl, "submitKrs", { nim: "240411100000", courseIds: [Number(courseId)] });
+          }
+          throw e;
+        }),
+      ),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const fail = results.filter((r) => r.status === "rejected").length;
+    console.log(`[Hasil] sukses: ${ok}, ditolak: ${fail} (harusnya sukses = 1, sisanya ditolak kuota habis)`);
+    results.forEach((r, i) => {
+      console.log(`  request #${i + 1}:`, r.status === "fulfilled" ? "SUKSES" : `GAGAL: ${(r.reason as Error).message}`);
+    });
+    const after = await callJsonRpc(courseUrl, "checkQuota", { id: Number(courseId) });
+    console.log("[Sesudah] kuota:", JSON.stringify(after), after.kuota < 0 ? "OVERBOOKING!" : "(tidak bocor)");
+  } catch (err: any) {
+    console.error("[SIMULASI Error]:", err.message);
+  }
+}
+
+/** Cristian's algorithm via CLI: T1/T4 + RTT + offset tanpa mengubah jam sistem. */
+async function cristianSyncCli(samples: number) {
+  try {
+    const url = SERVICE_URLS.krs();
+    console.log(`\n[CRISTIAN] Sinkronisasi jam ke Node 4 (${samples} sampel getTime)...`);
+    const all: Array<{ t1: number; t4: number; rtt: number; serverTime: number; offset: number }> = [];
+    for (let i = 0; i < samples; i++) {
+      const t1 = Date.now();
+      const res: any = await callJsonRpc(url, "getTime", {});
+      const t4 = Date.now();
+      const rtt = t4 - t1;
+      all.push({ t1, t4, rtt, serverTime: res.serverTime, offset: res.serverTime + rtt / 2 - t4 });
+      console.log(`  sampel #${i + 1}: T1=${t1} T_server=${res.serverTime} T4=${t4} RTT=${rtt}ms offset=${res.serverTime + rtt / 2 - t4}ms`);
+    }
+    const best = all.slice().sort((a, b) => a.rtt - b.rtt)[0];
+    console.log(`[CRISTIAN] Dipilih RTT terkecil: ${best.rtt}ms, offset: ${best.offset}ms`);
+    console.log(`[CRISTIAN] Jam lokal: ${new Date().toISOString()} | Estimasi jam server: ${new Date(Date.now() + best.offset).toISOString()}`);
+  } catch (err: any) {
+    console.error("[CRISTIAN Error]:", err.message);
+  }
+}
+
+async function getKrsPeriodCli() {
+  try {
+    const url = SERVICE_URLS.krs();
+    const period: any = await callJsonRpc(url, "getKrsPeriod", {});
+    console.log("\n[PERIODE KRS]:", JSON.stringify(period, null, 2));
+  } catch (err: any) {
+    console.error("[PERIODE Error]:", err.message);
   }
 }
 
