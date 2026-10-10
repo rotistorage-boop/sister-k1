@@ -5,6 +5,12 @@ import {
   getCourseByIdHandler,
   checkQuotaHandler,
   createCourseHandler,
+  acquireLockHandler,
+  releaseLockHandler,
+  getLockStatusHandler,
+  decrementQuotaHandler,
+  setQuotaHandler,
+  resetLockHandler,
 } from "../controllers/course.controller.js";
 import { createJsonRpcRouter } from "../../../utils/jsonrpc.util.js";
 
@@ -17,6 +23,13 @@ const rpcHandler = createJsonRpcRouter({
   checkQuota: checkQuotaHandler,
   createCourse: createCourseHandler,
   addCourse: createCourseHandler,
+  // Distributed Mutual Exclusion (Centralized Lock Coordinator)
+  acquireLock: acquireLockHandler,
+  releaseLock: releaseLockHandler,
+  getLockStatus: getLockStatusHandler,
+  decrementQuota: decrementQuotaHandler,
+  setQuota: setQuotaHandler,
+  resetLock: resetLockHandler,
 });
 
 courseRoute.post("/rpc", rpcHandler);
