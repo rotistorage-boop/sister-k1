@@ -1,4 +1,4 @@
-import { synchronizeTime, getKrsPeriod, type SyncResult } from "../rpc/time";
+import { synchronizeTime, getKrsPeriod, setKrsPeriod, openKrsPeriodNow, closeKrsPeriodNow, type SyncResult, type KrsPeriodResponse } from "../rpc/time";
 import { renderLucideIcons } from "../icons";
 
 function fmtClock(ms: number): string {
@@ -62,6 +62,48 @@ export function renderTimeSyncComponent(container: HTMLElement) {
           </div>
         </div>
         <div id="period-box" class="text-xs text-zinc-500 font-medium">Klik "Sinkronkan Sekarang" untuk menguji.</div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-zinc-200 p-6 text-left">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded bg-zinc-100 text-zinc-700 flex items-center justify-center">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-zinc-900">Kontrol Periode KRS (Admin)</h3>
+            <p class="text-xs font-medium text-zinc-500">setKrsPeriod ke Node 4 — start / end masa pengisian</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label for="input-open-at" class="block text-xs font-bold text-zinc-700 mb-1">Dibuka (openAt, kosong = tak terbatas)</label>
+            <input type="datetime-local" id="input-open-at"
+              class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+          </div>
+          <div>
+            <label for="input-close-at" class="block text-xs font-bold text-zinc-700 mb-1">Ditutup (closeAt, kosong = tak terbatas)</label>
+            <input type="datetime-local" id="input-close-at"
+              class="w-full bg-white border border-zinc-300 rounded-lg px-3.5 py-2 text-xs font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 transition" />
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="btn-open-now" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+            <span>Buka Sekarang</span>
+          </button>
+          <button id="btn-close-now" class="bg-rose-700 hover:bg-rose-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i>
+            <span>Tutup Sekarang</span>
+          </button>
+          <button id="btn-save-period" class="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+            <i data-lucide="save" class="w-3.5 h-3.5"></i>
+            <span>Simpan Jadwal</span>
+          </button>
+          <button id="btn-reset-period" class="text-xs font-semibold text-zinc-800 hover:bg-zinc-50 border border-zinc-300 px-3.5 py-2 rounded-lg transition">
+            Reset Tak Terbatas
+          </button>
+        </div>
+        <div id="admin-result" class="mt-4"></div>
       </div>
     </div>
   `;
@@ -152,4 +194,88 @@ export function renderTimeSyncComponent(container: HTMLElement) {
       periodBox.innerHTML = `<div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-xs font-semibold text-rose-800">Gagal memuat periode.</div>`;
     }
   };
+
+  // --- Kontrol periode (admin) ---
+  const openInput = container.querySelector<HTMLInputElement>("#input-open-at")!;
+  const closeInput = container.querySelector<HTMLInputElement>("#input-close-at")!;
+  const adminResult = container.querySelector<HTMLElement>("#admin-result")!;
+
+  function toEpochOrNull(v: string): number | null {
+    if (!v) return null;
+    const t = new Date(v).getTime();
+    return isNaN(t) ? null : t;
+  }
+
+  function toDatetimeLocal(ms: number | null): string {
+    if (ms === null) return "";
+    const d = new Date(ms);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  async function refreshAdminInputs() {
+    try {
+      const p = await getKrsPeriod();
+      openInput.value = toDatetimeLocal(p.openAt);
+      closeInput.value = toDatetimeLocal(p.closeAt);
+    } catch {
+      // abaikan: user tetap bisa mengisi manual
+    }
+  }
+
+  function renderPeriodSaved(p: KrsPeriodResponse) {
+    adminResult.innerHTML = `
+      <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+        <span>Periode tersimpan: ${p.openAtIso ?? "tak terbatas"} s/d ${p.closeAtIso ?? "tak terbatas"} — ${p.isOpen ? "DIBUKA" : "DITUTUP"}.</span>
+      </div>`;
+    renderLucideIcons(adminResult);
+    openInput.value = toDatetimeLocal(p.openAt);
+    closeInput.value = toDatetimeLocal(p.closeAt);
+  }
+
+  function renderAdminError(msg: string) {
+    adminResult.innerHTML = `
+      <div class="bg-rose-50 border border-rose-200 rounded-lg p-4 text-xs font-semibold text-rose-800">${msg}</div>`;
+  }
+
+  container.querySelector<HTMLButtonElement>("#btn-open-now")!.onclick = async () => {
+    try {
+      renderPeriodSaved(await openKrsPeriodNow());
+    } catch (err: unknown) {
+      renderAdminError(err instanceof Error ? err.message : "Gagal membuka periode");
+    }
+  };
+
+  container.querySelector<HTMLButtonElement>("#btn-close-now")!.onclick = async () => {
+    try {
+      renderPeriodSaved(await closeKrsPeriodNow());
+    } catch (err: unknown) {
+      renderAdminError(err instanceof Error ? err.message : "Gagal menutup periode");
+    }
+  };
+
+  container.querySelector<HTMLButtonElement>("#btn-save-period")!.onclick = async () => {
+    try {
+      renderPeriodSaved(
+        await setKrsPeriod({
+          openAt: toEpochOrNull(openInput.value),
+          closeAt: toEpochOrNull(closeInput.value),
+          note: "diatur via Node 1 (FE)",
+        }),
+      );
+    } catch (err: unknown) {
+      renderAdminError(err instanceof Error ? err.message : "Gagal menyimpan periode");
+    }
+  };
+
+  container.querySelector<HTMLButtonElement>("#btn-reset-period")!.onclick = async () => {
+    try {
+      renderPeriodSaved(await setKrsPeriod({ openAt: null, closeAt: null, note: "reset via Node 1 (FE)" }));
+    } catch (err: unknown) {
+      renderAdminError(err instanceof Error ? err.message : "Gagal mereset periode");
+    }
+  };
+
+  refreshAdminInputs();
 }
