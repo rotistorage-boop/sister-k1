@@ -47,9 +47,13 @@ async function main() {
     console.log("17. Simulasi Rebutan Kuota (lock terpusat Node 3 + token Node 4)");
     console.log("18. Sinkronisasi Jam Cristian (Node 1 -> Node 4 getTime)");
     console.log("19. Lihat Periode KRS (deadline Node 4)");
-    console.log("20. Keluar");
+    console.log("\n--- KONTROL PERIODE KRS (START/END) ---");
+    console.log("20. Buka Periode KRS Sekarang");
+    console.log("21. Tutup Periode KRS Sekarang");
+    console.log("22. Atur Periode KRS Custom (openAt/closeAt)");
+    console.log("23. Keluar");
 
-    const choice = await rl.question("\nPilih menu (1-20): ");
+    const choice = await rl.question("\nPilih menu (1-23): ");
     const trimmedChoice = choice.trim();
 
     if (trimmedChoice === "1") {
@@ -131,11 +135,19 @@ async function main() {
     } else if (trimmedChoice === "19") {
       await getKrsPeriodCli();
     } else if (trimmedChoice === "20") {
+      await openKrsPeriodCli();
+    } else if (trimmedChoice === "21") {
+      await closeKrsPeriodCli();
+    } else if (trimmedChoice === "22") {
+      const openInput = await rl.question("openAt (ISO, contoh: 2026-10-10T08:00 | kosong = tak terbatas): ");
+      const closeInput = await rl.question("closeAt (ISO | kosong = tak terbatas): ");
+      await setKrsPeriodCustomCli(openInput.trim(), closeInput.trim());
+    } else if (trimmedChoice === "23") {
       console.log("Keluar dari client. Sampai jumpa!");
       rl.close();
       process.exit(0);
     } else {
-      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 20.");
+      console.log("Pilihan tidak valid! Masukkan angka 1 sampai 23.");
     }
   }
 }
@@ -393,6 +405,63 @@ async function getKrsPeriodCli() {
     const url = SERVICE_URLS.krs();
     const period: any = await callJsonRpc(url, "getKrsPeriod", {});
     console.log("\n[PERIODE KRS]:", JSON.stringify(period, null, 2));
+  } catch (err: any) {
+    console.error("[PERIODE Error]:", err.message);
+  }
+}
+
+/** Parse input waktu CLI: kosong -> null, ISO/epoch -> ms, selain itu error. */
+function parsePeriodInput(v: string): number | null {
+  if (!v) return null;
+  const t = Date.parse(v);
+  if (!isNaN(t)) return t;
+  const n = Number(v);
+  if (!isNaN(n)) return n;
+  throw new Error(`Format waktu tidak valid: "${v}" (gunakan ISO 8601 atau epoch ms)`);
+}
+
+async function openKrsPeriodCli() {
+  try {
+    const url = SERVICE_URLS.krs();
+    console.log("\n[PERIODE] Membuka periode KRS sekarang...");
+    const result = await callJsonRpc(url, "setKrsPeriod", {
+      openAt: Date.now(),
+      closeAt: null,
+      note: "dibuka via CLI Node 1",
+    });
+    console.log("[PERIODE Result]:", JSON.stringify(result, null, 2));
+  } catch (err: any) {
+    console.error("[PERIODE Error]:", err.message);
+  }
+}
+
+async function closeKrsPeriodCli() {
+  try {
+    const url = SERVICE_URLS.krs();
+    console.log("\n[PERIODE] Menutup periode KRS sekarang...");
+    const result = await callJsonRpc(url, "setKrsPeriod", {
+      openAt: null,
+      closeAt: Date.now(),
+      note: "ditutup via CLI Node 1",
+    });
+    console.log("[PERIODE Result]:", JSON.stringify(result, null, 2));
+  } catch (err: any) {
+    console.error("[PERIODE Error]:", err.message);
+  }
+}
+
+async function setKrsPeriodCustomCli(openInput: string, closeInput: string) {
+  try {
+    const openAt = parsePeriodInput(openInput);
+    const closeAt = parsePeriodInput(closeInput);
+    const url = SERVICE_URLS.krs();
+    console.log("\n[PERIODE] Mengatur periode custom...", { openAt, closeAt });
+    const result = await callJsonRpc(url, "setKrsPeriod", {
+      openAt,
+      closeAt,
+      note: "diatur via CLI Node 1",
+    });
+    console.log("[PERIODE Result]:", JSON.stringify(result, null, 2));
   } catch (err: any) {
     console.error("[PERIODE Error]:", err.message);
   }
