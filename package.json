@@ -28,6 +28,9 @@
     "test3": "vitest run src/tests/node3-course.test.ts",
     "test4": "vitest run src/tests/node4-krs.test.ts",
     "test5": "vitest run src/tests/node5-schedule.test.ts",
+    "test:mutex": "vitest run src/tests/sync-mutex.test.ts",
+    "test:cristian": "vitest run src/tests/sync-cristian.test.ts",
+    "test:sync": "vitest run src/tests/sync-mutex.test.ts src/tests/sync-cristian.test.ts",
     "test": "vitest run",
     "zip": "git archive -o rpc-rmi.zip HEAD"
   },
