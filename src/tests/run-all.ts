@@ -5,3 +5,5 @@ import "./node2-student.test.ts";
 import "./node3-course.test.ts";
 import "./node4-krs.test.ts";
 import "./node5-schedule.test.ts";
+import "./sync-mutex.test.ts";
+import "./sync-cristian.test.ts";
