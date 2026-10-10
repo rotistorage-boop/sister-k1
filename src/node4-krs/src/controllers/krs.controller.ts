@@ -16,6 +16,15 @@ import {
 } from "../../../utils/rmi.util.js";
 import type { IScheduleRemoteService } from "../../../node5-schedule/src/interfaces/schedule-remote.interface.js";
 import { SERVICE_URLS } from "../../../utils/service-url.util.js";
+import { orchestratorToken } from "../services/token.service.js";
+import {
+  acquireQuotaLocksSorted,
+  releaseQuotaLocks,
+  decrementQuotaLocked,
+  newClientId,
+  quotaResource,
+} from "../services/mutex-client.service.js";
+import { getKrsPeriod, setKrsPeriod, checkPeriod } from "../services/krs-period.service.js";
 
 // Helper function untuk melakukan Application-Level Aggregation (Enrichment via RPC to Node 3)
 async function enrichKrsData(krsItem: any) {
@@ -59,6 +68,13 @@ export async function submitKrsHandler(params: {
     );
   }
 
+  // 0. Validasi periode KRS memakai jam SERVER (time authority, adil untuk semua client)
+  const nowServer = Date.now();
+  const periodCheck = checkPeriod(nowServer);
+  if (!periodCheck.isOpen) {
+    throw new JsonRpcError(JSON_RPC_ERRORS.BAD_REQUEST.code, periodCheck.reason);
+  }
+
   // 1. RPC Synchronous: Validasi Mahasiswa ke Node 2 (Student Server)
   let studentData: any = null;
   try {
@@ -83,7 +99,9 @@ export async function submitKrsHandler(params: {
     );
   }
 
-  // 2. RPC Synchronous: Validasi Kuota Course ke Node 3 (Course Server)
+  // 2. Validasi awal kuota (read-only, fast-fail) + RMI jadwal boleh paralel.
+  //    Pengurangan kuota yang sebenarnya dilakukan ATOMIK di critical section
+  //    (langkah 4) sehingga tidak ada overbooking.
   const validCourses: any[] = [];
   for (const cid of courseIds) {
     try {
@@ -143,16 +161,58 @@ export async function submitKrsHandler(params: {
     );
   }
 
-  // 4. Simpan KRS ke DB lokal Node 4
-  const newKrs = await createKrsService(nim, courseIds);
-
-  return {
-    krs: newKrs,
-    student: studentData,
-    courses: validCourses,
-    scheduleCheck: scheduleResult,
-    status: "KRS berhasil disimpan",
-  };
+  // 4. CRITICAL SECTION: Token-based (Node 4) + Centralized lock (Node 3).
+  //    Hanya pemegang token orchestrator yang boleh masuk; di dalamnya,
+  //    acquire FIFO lock per mata kuliah (terurut anti-deadlock),
+  //    decrement atomik, lalu release. Tanpa ini, dua request bersamaan
+  //    bisa sama-sama membaca kuota=1 dan overbooking.
+  const clientId = newClientId("node4");
+  const tokenOwner = `${clientId}-submit`;
+  let finalCourses: any[] = validCourses;
+  let lockInfo: { resources: string[]; queued: boolean[] } = { resources: [], queued: [] };
+  try {
+    const res = await orchestratorToken.withToken(tokenOwner, async () => {
+      const locks = await acquireQuotaLocksSorted(courseIds.map(Number), clientId);
+      try {
+        const decremented: any[] = [];
+        for (const lock of locks) {
+          const cid = Number(lock.resource.split(":")[1]);
+          decremented.push(await decrementQuotaLocked(cid, lock, 1));
+        }
+        return { locks, decremented };
+      } catch (err) {
+        await releaseQuotaLocks(locks);
+        throw err;
+      }
+    });
+    lockInfo = {
+      resources: courseIds.map((c) => quotaResource(Number(c))),
+      queued: [],
+    };
+    finalCourses = res.decremented;
+    // Simpan KRS dulu, baru lepaskan distributed lock agar tidak ada
+    // celah request lain menyerobot sebelum baris KRS tercatat.
+    const newKrs = await createKrsService(nim, courseIds.map(Number));
+    await releaseQuotaLocks(res.locks);
+    return {
+      krs: newKrs,
+      student: studentData,
+      courses: finalCourses,
+      scheduleCheck: scheduleResult,
+      status: "KRS berhasil disimpan",
+      sync: {
+        mutualExclusion: "token(node4)+centralized-lock(node3)",
+        clientId,
+        lockResources: lockInfo.resources,
+      },
+    };
+  } catch (err: any) {
+    if (err instanceof JsonRpcError) throw err;
+    throw new JsonRpcError(
+      JSON_RPC_ERRORS.SERVICE_UNAVAILABLE.code,
+      `Gagal mengamankan kuota (mutual exclusion): ${err.message}`,
+    );
+  }
 }
 
 export async function getAllKrsHandler(_params?: any) {
@@ -191,4 +251,52 @@ export async function getKrsByNimHandler(params: { nim: string }) {
 
   const list = await getKrsByNimService(nim);
   return await Promise.all(list.map((item) => enrichKrsData(item)));
+}
+
+// ---------------------------------------------------------------------------
+// Physical Clock Synchronization - Cristian's Algorithm (time authority)
+// ---------------------------------------------------------------------------
+
+/** Endpoint acuan waktu: client mencatat T1/T4 di sekitar pemanggilan ini. */
+export async function getTimeHandler(_params?: any) {
+  const serverTime = Date.now();
+  return { serverTime, iso: new Date(serverTime).toISOString() };
+}
+
+export async function getKrsPeriodHandler(_params?: any) {
+  const period = getKrsPeriod();
+  const now = Date.now();
+  const check = checkPeriod(now);
+  return {
+    ...period,
+    openAtIso: period.openAt !== null ? new Date(period.openAt).toISOString() : null,
+    closeAtIso: period.closeAt !== null ? new Date(period.closeAt).toISOString() : null,
+    serverTime: now,
+    serverIso: new Date(now).toISOString(),
+    isOpen: check.isOpen,
+    reason: check.reason,
+  };
+}
+
+export async function setKrsPeriodHandler(params: { openAt?: string | number | null; closeAt?: string | number | null; note?: string }) {
+  const parse = (v: string | number | null | undefined): number | null => {
+    if (v === undefined || v === null || v === "") return null;
+    if (typeof v === "number") return v;
+    const t = Date.parse(v);
+    if (!isNaN(t)) return t;
+    const n = Number(v);
+    if (!isNaN(n)) return n;
+    throw new JsonRpcError(JSON_RPC_ERRORS.INVALID_PARAMS.code, `Format waktu tidak valid: ${v} (gunakan ISO 8601 atau epoch ms)`);
+  };
+  try {
+    const period = setKrsPeriod(parse(params?.openAt), parse(params?.closeAt), params?.note);
+    return { ...period, serverTime: Date.now() };
+  } catch (err: any) {
+    if (err instanceof JsonRpcError) throw err;
+    throw new JsonRpcError(JSON_RPC_ERRORS.BAD_REQUEST.code, err.message);
+  }
+}
+
+export async function getTokenStatusHandler(_params?: any) {
+  return { ...orchestratorToken.status, mechanism: "token-based mutual exclusion (FIFO)" };
 }
