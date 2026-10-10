@@ -273,6 +273,13 @@ describe("Sinkronisasi #1: Distributed Mutual Exclusion (Rebutan Kuota)", () => 
     const CONCURRENT_COUNT = 5;
 
     it(`${CONCURRENT_COUNT}x submitKrs bersamaan untuk matkul kuota=1 → tepat 1 sukses, sisanya ditolak`, async () => {
+      // Pastikan periode TERBUKA agar race bermakna (bukan 0 sukses vakum
+      // karena periode sedang ditutup file test lain yang paralel).
+      await callJsonRpc(KRS_URL, "setKrsPeriod", {
+        openAt: null,
+        closeAt: null,
+        note: "test - race window open",
+      });
       // Reset scoped + set kuota = 1 pada course isolasi sendiri
       await callJsonRpc(COURSE_URL, "resetLock", { resource: lockResource(TEST_COURSE_ID) });
       await callJsonRpc(COURSE_URL, "setQuota", { id: TEST_COURSE_ID, kuota: 1 });
