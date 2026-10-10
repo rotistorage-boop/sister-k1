@@ -9,8 +9,9 @@ import { renderStudentComponent } from "./components/student";
 import { renderCourseComponent } from "./components/course";
 import { renderKrsComponent } from "./components/krs";
 import { renderScheduleComponent } from "./components/schedule";
+import { renderTimeSyncComponent } from "./components/time-sync";
 
-type TabId = "dashboard" | "student" | "course" | "krs" | "schedule";
+type TabId = "dashboard" | "student" | "course" | "krs" | "schedule" | "timesync";
 
 function renderNodeStatusList(
   container: HTMLElement,
@@ -520,6 +521,9 @@ function switchTab(tabId: TabId) {
       break;
     case "schedule":
       renderScheduleComponent(view);
+      break;
+    case "timesync":
+      renderTimeSyncComponent(view);
       break;
   }
 }
